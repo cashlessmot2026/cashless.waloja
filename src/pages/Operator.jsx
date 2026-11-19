@@ -53,7 +53,7 @@ function Charge({ noVenue }) {
   return (
     <div className="stack narrow">
       {noVenue && <div className="alert warn">Tu usuario no tiene lugar asignado. Pide al administrador que te asigne Bar/Restaurante.</div>}
-      <div className="panel"><h3>Escanear cliente</h3><ScanField onScan={scan} /></div>
+      <div className="panel"><h3>Escanear cliente</h3><ScanField onScan={scan} placeholder="Lector USB + Enter (QR / pulsera)" /></div>
 
       {res && !client && <div className="alert bad">{res.msg}</div>}
 
@@ -89,7 +89,7 @@ function Balance() {
   }
   return (
     <div className="stack narrow">
-      <div className="panel"><h3>Consultar saldo</h3><ScanField onScan={scan} /></div>
+      <div className="panel"><h3>Consultar saldo</h3><ScanField onScan={scan} placeholder="Lector USB + Enter (QR / pulsera)" /></div>
       {err && <div className="alert bad">{err}</div>}
       {c && (
         <div className="panel center">

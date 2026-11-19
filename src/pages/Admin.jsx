@@ -102,6 +102,8 @@ function GuestForm({ g, onClose, onSaved }) {
         <Field label={isNew ? 'Contraseña del cliente (4 dígitos)' : 'Nueva contraseña (vacío = no cambiar)'}>
           <input inputMode="numeric" maxLength={4} pattern={isNew ? '[0-9]{4}' : '([0-9]{4})?'} value={f.pin} onChange={set('pin')} required={isNew} />
         </Field>
+        {!isNew && <button type="button" className="btn danger small" onClick={async () => { if (window.confirm('Se invalidará el QR actual del cliente y se generará uno nuevo. ¿Continuar?')) { try { await rpc('admin_regen_qr', { p_id: g.id }); setM({ ok: true, t: 'QR regenerado. El cliente verá el nuevo al abrir la app.' }) } catch (x) { setM({ ok: false, t: x.message }) } } }}>Regenerar QR (pérdida/robo)</button>}
+        <small>El cliente debe aceptar la política de tratamiento de datos en su primer ingreso. Sus datos se usan solo para esta plataforma.</small>
         <Msg m={m} />
         <button className="btn">Guardar</button>
       </form>

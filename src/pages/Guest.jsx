@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import { rpc, money, dt } from '../lib/supabase'
 import { Shell, Modal, Field } from '../components/ui'
+import { ConsentGate, ConsentModal, CONSENT_VERSION } from '../components/Consent'
 
 const COLORS = ['#4f6bff', '#d9a56e', '#e58a8a', '#a06bff', '#4fd1c5']
 
@@ -36,6 +37,7 @@ export default function Guest({ onLogout }) {
   const [hide, setHide] = useState(false)
   const [qr, setQr] = useState(false)
   const [pinOpen, setPinOpen] = useState(false)
+  const [legal, setLegal] = useState(false)
 
   const load = useCallback(async () => {
     try {
@@ -46,6 +48,7 @@ export default function Guest({ onLogout }) {
   useEffect(() => { load(); const i = setInterval(load, 15000); return () => clearInterval(i) }, [load])
 
   if (!me) return <div className="splash">Cargando…</div>
+  if (!me.consent_at) return <ConsentGate onDecline={onLogout} onAccept={async () => { await rpc('guest_accept_consent', { p_version: CONSENT_VERSION }); await load() }} />
   const tabs = [
     { id: 'home', icon: '⌂', label: 'Inicio' },
     { id: 'menu', icon: '🍽', label: 'Carta' },
@@ -101,6 +104,7 @@ export default function Guest({ onLogout }) {
             <p><span>Pulsera NFC</span><b>{me.nfc_uid || 'Sin asignar'}</b></p>
           </div>
           <button className="btn ghost" onClick={() => setPinOpen(true)}>🔑 Cambiar mi contraseña (4 dígitos)</button>
+          <button className="btn ghost" onClick={() => setLegal(true)}>📄 Política de datos personales</button>
           <button className="btn danger" onClick={onLogout}>Cerrar sesión</button>
         </div>
       )}
@@ -111,6 +115,7 @@ export default function Guest({ onLogout }) {
         </Modal>
       )}
       {pinOpen && <PinForm onClose={() => setPinOpen(false)} />}
+      {legal && <ConsentModal onClose={() => setLegal(false)} />}
     </Shell>
   )
 }

@@ -77,6 +77,18 @@ create table if not exists sessions (
   expires_at timestamptz not null
 );
 
+alter table guests add column if not exists consent_at timestamptz;
+alter table guests add column if not exists consent_version text;
+
+create table if not exists audit_log (
+  id bigint generated always as identity primary key,
+  staff_id uuid,
+  action text not null,
+  detail jsonb,
+  created_at timestamptz not null default now()
+);
+alter table audit_log enable row level security;
+
 alter table venues enable row level security;
 alter table staff enable row level security;
 alter table guests enable row level security;
@@ -122,24 +134,31 @@ begin
   return g;
 end $$;
 
--- busca huésped por QR, UID NFC o cédula
-create or replace function _find_guest(p_code text)
+-- busca huésped por QR o UID NFC (y por cédula SOLO si p_allow_id, uso admin)
+drop function if exists _find_guest(text);
+create or replace function _find_guest(p_code text, p_allow_id boolean default false)
 returns guests language plpgsql security definer set search_path = public, extensions as $$
 declare g guests; c text := _norm_code(p_code);
 begin
   if c = '' then raise exception 'CODIGO_VACIO'; end if;
   select * into g from guests
    where upper(qr_code) = c or upper(nfc_uid) = c
-      or upper(regexp_replace(id_number, '[^A-Za-z0-9]', '', 'g')) = c limit 1;
+      or (p_allow_id and upper(regexp_replace(id_number, '[^A-Za-z0-9]', '', 'g')) = c) limit 1;
   if g.id is null then raise exception 'CLIENTE_NO_ENCONTRADO'; end if;
   return g;
 end $$;
+
+create or replace function _audit(p_staff uuid, p_action text, p_detail jsonb default null)
+returns void language sql security definer set search_path = public as $$
+  insert into audit_log(staff_id, action, detail) values (p_staff, p_action, p_detail)
+$$;
 
 create or replace function _guest_json(g guests) returns jsonb
 language sql stable as $$
   select jsonb_build_object('id',g.id,'full_name',g.full_name,'id_type',g.id_type,
     'id_number',g.id_number,'phone',g.phone,'balance',g.balance,'nfc_uid',g.nfc_uid,
-    'qr_code',g.qr_code,'check_in',g.check_in,'active',g.active)
+    'qr_code',g.qr_code,'check_in',g.check_in,'active',g.active,
+    'consent_at',g.consent_at)
 $$;
 
 create or replace function _check_pin(p text) returns void language plpgsql as $$
@@ -159,7 +178,8 @@ begin
     update guests set failed_attempts = failed_attempts + 1,
       locked_until = case when failed_attempts + 1 >= 5 then now() + interval '10 minutes' else null end
      where id = g.id;
-    raise exception 'CREDENCIALES_INVALIDAS';
+    -- NO se lanza excepcion: revertiria el contador de intentos y el bloqueo nunca funcionaria
+    return jsonb_build_object('error', 'CREDENCIALES_INVALIDAS');
   end if;
   update guests set failed_attempts = 0, locked_until = null where id = g.id;
   return jsonb_build_object('token', _new_session('guest', g.id, 12), 'role', 'guest');
@@ -176,7 +196,8 @@ begin
     update staff set failed_attempts = failed_attempts + 1,
       locked_until = case when failed_attempts + 1 >= 5 then now() + interval '10 minutes' else null end
      where id = s.id;
-    raise exception 'CREDENCIALES_INVALIDAS';
+    -- NO se lanza excepcion: revertiria el contador de intentos y el bloqueo nunca funcionaria
+    return jsonb_build_object('error', 'CREDENCIALES_INVALIDAS');
   end if;
   update staff set failed_attempts = 0, locked_until = null where id = s.id;
   return jsonb_build_object('token', _new_session('staff', s.id, 12), 'role', s.role);
@@ -268,7 +289,7 @@ language plpgsql security definer set search_path = public, extensions as $$
 declare s staff; g guests;
 begin
   s := _staff_from(p_token);
-  g := _find_guest(p_code);
+  g := _find_guest(p_code, s.role = 'admin');
   return jsonb_build_object('id',g.id,'full_name',g.full_name,'id_number',g.id_number,
     'balance',g.balance,'active',g.active,'nfc_uid',g.nfc_uid);
 end $$;
@@ -278,8 +299,9 @@ returns jsonb language plpgsql security definer set search_path = public, extens
 declare s staff; g guests;
 begin
   s := _staff_from(p_token);
-  if p_amount is null or p_amount <= 0 then raise exception 'MONTO_INVALIDO'; end if;
-  g := _find_guest(p_code);
+  if p_amount is null or p_amount <= 0 or p_amount > 50000000 then raise exception 'MONTO_INVALIDO'; end if;
+  p_amount := round(p_amount, 2);
+  g := _find_guest(p_code, false);   -- el cobro exige QR o pulsera, nunca cédula
   select * into g from guests where id = g.id for update;     -- bloqueo anti doble cobro
   if not g.active then raise exception 'CLIENTE_INACTIVO'; end if;
   if g.balance <= 0 or g.balance < p_amount then raise exception 'SIN_SALDO'; end if;
@@ -297,7 +319,7 @@ declare s staff; g guests;
 begin
   s := _staff_from(p_token,'admin');
   perform _check_pin(p_pin);
-  if coalesce(p_balance,0) < 0 then raise exception 'MONTO_INVALIDO'; end if;
+  if coalesce(p_balance,0) < 0 or coalesce(p_balance,0) > 50000000 then raise exception 'MONTO_INVALIDO'; end if;
   insert into guests(full_name,id_type,id_number,phone,balance,nfc_uid,pin_hash)
   values (trim(p_full_name), coalesce(nullif(p_id_type,''),'CC'), trim(p_id_number), nullif(trim(p_phone),''),
           coalesce(p_balance,0), nullif(_norm_code(p_nfc_uid),''), crypt(p_pin, gen_salt('bf')))
@@ -328,9 +350,35 @@ end $$;
 
 create or replace function admin_delete_guest(p_token text, p_id uuid) returns void
 language plpgsql security definer set search_path = public, extensions as $$
+declare s staff; g guests;
 begin
-  perform _staff_from(p_token,'admin');
+  s := _staff_from(p_token,'admin');
+  select * into g from guests where id = p_id;
+  if g.id is null then return; end if;
+  perform _audit(s.id,'delete_guest',jsonb_build_object('id',g.id,'name',g.full_name,'id_number',g.id_number,'balance',g.balance));
   delete from guests where id = p_id;
+  delete from sessions where ref_id = p_id;
+end $$;
+
+-- invalida el QR actual (por pérdida/robo) y genera uno nuevo
+create or replace function admin_regen_qr(p_token text, p_id uuid) returns jsonb
+language plpgsql security definer set search_path = public, extensions as $$
+declare s staff; g guests;
+begin
+  s := _staff_from(p_token,'admin');
+  update guests set qr_code = encode(gen_random_bytes(12),'hex') where id = p_id returning * into g;
+  if g.id is null then raise exception 'CLIENTE_NO_ENCONTRADO'; end if;
+  perform _audit(s.id,'regen_qr',jsonb_build_object('guest',g.id));
+  return _guest_json(g);
+end $$;
+
+-- el huésped acepta la política de tratamiento de datos personales
+create or replace function guest_accept_consent(p_token text, p_version text default 'v1')
+returns void language plpgsql security definer set search_path = public, extensions as $$
+declare g guests;
+begin
+  g := _guest_from(p_token);
+  update guests set consent_at = now(), consent_version = left(coalesce(p_version,'v1'),20) where id = g.id;
 end $$;
 
 create or replace function admin_list_guests(p_token text, p_search text default null) returns jsonb
@@ -350,11 +398,14 @@ returns jsonb language plpgsql security definer set search_path = public, extens
 declare s staff; g guests;
 begin
   s := _staff_from(p_token,'admin');
-  if p_amount is null or p_amount <= 0 then raise exception 'MONTO_INVALIDO'; end if;
-  g := _find_guest(p_code);
+  if p_amount is null or p_amount <= 0 or p_amount > 50000000 then raise exception 'MONTO_INVALIDO'; end if;
+  p_amount := round(p_amount, 2);
+  g := _find_guest(p_code, true);
+  select * into g from guests where id = g.id for update;
   update guests set balance = balance + p_amount where id = g.id returning * into g;
   insert into transactions(guest_id,type,amount,balance_after,description,staff_id)
   values (g.id,'topup',p_amount,g.balance,'Recarga de saldo',s.id);
+  perform _audit(s.id,'topup',jsonb_build_object('guest',g.id,'amount',p_amount));
   return jsonb_build_object('full_name',g.full_name,'balance',g.balance,'added',p_amount);
 end $$;
 
@@ -430,7 +481,9 @@ declare me staff;
 begin
   me := _staff_from(p_token,'admin');
   if p_id = me.id then raise exception 'NO_AUTO_DESACTIVAR'; end if;
+  perform _audit(me.id,'delete_staff',jsonb_build_object('id',p_id));
   delete from staff where id = p_id;
+  delete from sessions where ref_id = p_id;
 end $$;
 
 -- ---------- ADMIN: inventario ----------
@@ -465,13 +518,21 @@ begin
   delete from products where id = p_id;
 end $$;
 
--- ---------- PERMISOS ----------
-revoke all on all tables in schema public from anon, authenticated;
-revoke execute on all functions in schema public from public;
+-- ---------- PERMISOS (lista blanca) ----------
+-- 1) Nadie con la llave publica toca tablas ni secuencias.
+revoke all on all tables in schema public from anon, authenticated, public;
+revoke all on all sequences in schema public from anon, authenticated, public;
+-- 2) Se quita TODO permiso de ejecucion (incluye helpers internos: _find_guest, _new_session...)
+revoke execute on all functions in schema public from anon, authenticated, public;
+-- 3) Lo que se cree en el futuro tampoco queda expuesto por defecto
+alter default privileges in schema public revoke all on tables from anon, authenticated;
+alter default privileges in schema public revoke all on sequences from anon, authenticated;
+alter default privileges in schema public revoke execute on functions from anon, authenticated, public;
+-- 4) Solo la API publica (RPC con token) es ejecutable
 do $$
 declare f record;
 begin
-  for f in select p.oid::regprocedure as sig, p.proname
+  for f in select p.oid::regprocedure as sig
            from pg_proc p join pg_namespace n on n.oid=p.pronamespace
            where n.nspname='public' and (p.proname like 'app\_%' or p.proname like 'staff\_%'
               or p.proname like 'guest\_%' or p.proname like 'admin\_%' or p.proname like 'operator\_%')
@@ -484,7 +545,8 @@ end $$;
 insert into venues(name,kind) select 'Bar','bar' where not exists (select 1 from venues);
 insert into venues(name,kind) select 'Restaurante','restaurante' where (select count(*) from venues) = 1;
 
--- Administrador inicial. CAMBIAR LA CLAVE al primer ingreso (Admin > Mi cuenta).
-insert into staff(username, full_name, pass_hash, role)
-select 'admin', 'Administrador', crypt('Admin2026*', gen_salt('bf')), 'admin'
-where not exists (select 1 from staff where role='admin');
+-- Si quedo el administrador de la version anterior con la clave por defecto (publica en GitHub), se elimina.
+delete from staff where username = 'admin' and pass_hash = extensions.crypt('Admin2026*', pass_hash);
+
+-- IMPORTANTE: este script NO crea administradores. Crea el tuyo con clave propia (ver README)
+-- o usa demo/demo_users.sql SOLO para pruebas.
