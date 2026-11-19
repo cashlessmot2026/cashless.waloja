@@ -25,7 +25,7 @@ function Donut({ data, total, balance, hide }) {
           return el
         })}
       </svg>
-      <div className="donut-in"><small>{t('g.balance')}</small><strong>{hide ? '••••' : money(balance)}</strong></div>
+      <div className="donut-in"><small>{Number(balance) < 0 ? t('g.owed') : t('g.balance')}</small><strong>{hide ? '••••' : money(Math.abs(balance))}</strong></div>
     </div>
   )
 }
@@ -65,10 +65,11 @@ export default function Guest({ onLogout }) {
       {tab === 'home' && (
         <div className="stack">
           <div className="card-wallet">
-            <div className="between"><span>{t('g.balance')}</span><button className="eye" onClick={() => setHide(!hide)}>{hide ? '🙈' : '👁'}</button></div>
-            <div className="big">{hide ? '••••••' : money(me.balance)}</div>
+            <div className="between"><span>{Number(me.balance) < 0 ? t('g.owed') : t('g.balance')}</span><button className="eye" onClick={() => setHide(!hide)}>{hide ? '🙈' : '👁'}</button></div>
+            <div className="big">{hide ? '••••••' : money(Math.abs(me.balance))}</div>
+            {me.unlimited && <div className="pill">∞ {t('g.unlimited')}</div>}
             <div className="between small">
-              <span>{t('g.nfc')}<br /><b>{me.nfc_uid || t('g.none')}</b></span>
+              <span>{t('g.bracelets')}<br /><b>{me.bracelets.length ? me.bracelets.map((b) => b.label || b.uid).join(', ') : t('g.none')}</b></span>
               <span style={{ textAlign: 'end' }}>{t('g.idnum')}<br /><b>{me.id_number}</b></span>
             </div>
           </div>
@@ -105,7 +106,9 @@ export default function Guest({ onLogout }) {
             <p><span>{me.id_type}</span><b>{me.id_number}</b></p>
             <p><span>{t('g.phone')}</span><b>{me.phone || '—'}</b></p>
             <p><span>{t('g.checkin')}</span><b>{dt(me.check_in)}</b></p>
-            <p><span>{t('g.nfc')}</span><b>{me.nfc_uid || t('g.none')}</b></p>
+            {me.unlimited && <p><span>∞</span><b>{t('g.unlimited')}</b></p>}
+            <p><span>{t('g.bracelets')}</span><b>{me.bracelets.length ? '' : t('g.none')}</b></p>
+            {me.bracelets.map((b) => <p key={b.uid}><span>🔖 {b.label || t('g.bracelet')}</span><b>{b.uid}</b></p>)}
           </div>
           <button className="btn ghost" onClick={() => setPinOpen(true)}>{t('g.changepin')}</button>
           <WebLink />
@@ -118,7 +121,7 @@ export default function Guest({ onLogout }) {
       {qr && (
         <Modal title={t('g.myqr')} onClose={() => setQr(false)}>
           <div className="qrbox"><QRCodeSVG value={qrVal} size={240} bgColor="#ffffff" fgColor="#0b0f2a" level="M" marginSize={2} /></div>
-          <p className="muted center">{t('g.qrhelp')}<br />{t('g.bracelet')}: <b>{me.nfc_uid || t('g.unassigned')}</b></p>
+          <p className="muted center">{t('g.qrhelp')}<br />{t('g.bracelets')}: <b>{me.bracelets.length ? me.bracelets.map((b) => b.label || b.uid).join(', ') : t('g.unassigned')}</b></p>
         </Modal>
       )}
       {pinOpen && <PinForm onClose={() => setPinOpen(false)} />}
@@ -136,7 +139,7 @@ function TxList({ items }) {
           <div className={'avatar ' + t.type}>{t.type === 'charge' ? '↘' : '↗'}</div>
           <div className="grow">
             <b>{t.type === 'charge' ? (t.description || t0('tx.consumption')) : t0('tx.topup')}</b>
-            <small>{t.venue ? t.venue + ' · ' : ''}{dt(t.created_at)}</small>
+            <small>{t.venue ? t.venue + ' · ' : ''}{dt(t.created_at)}{t.type === 'charge' && <> · 🔖 {t.bracelet_label || t.bracelet_uid || t0('tx.qr')}{t.bracelet_label && t.bracelet_uid ? ` (${t.bracelet_uid})` : ''}</>}</small>
           </div>
           <b className={t.type === 'charge' ? 'neg' : 'pos'}>{t.type === 'charge' ? '-' : '+'}{money(t.amount)}</b>
         </div>

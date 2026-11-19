@@ -48,8 +48,8 @@ function Charge({ noVenue }) {
     } catch (x) { setRes({ ok: false, msg: x.message }); if (x.code?.includes('SIN_SALDO')) setClient((c) => c && { ...c, balance: Math.min(c.balance, 0) }) }
     setBusy(false)
   }
-  const noBal = client && Number(client.balance) <= 0
-  const insuff = client && amount && Number(amount) > Number(client.balance)
+  const noBal = client && !client.unlimited && Number(client.balance) <= 0
+  const insuff = client && !client.unlimited && amount && Number(amount) > Number(client.balance)
 
   return (
     <div className="stack narrow">
@@ -61,8 +61,10 @@ function Charge({ noVenue }) {
       {client && (
         <div className="panel">
           <div className="between"><h3>{client.full_name}</h3><button className="btn ghost small" onClick={reset}>{t('common.new')}</button></div>
-          <p className="muted">{t('op.cc')} {client.id_number}</p>
-          <div className="bal">{money(client.balance)}</div>
+          <p className="muted">{t('op.cc')} {client.id_number}{client.bracelet_uid ? <> · 🔖 {t('op.bracelet')}: <b>{client.bracelet_label || client.bracelet_uid}</b></> : ''}</p>
+          {Number(client.balance) < 0 && <small>{t('op.owed')}</small>}
+          <div className="bal">{money(Math.abs(client.balance))}</div>
+          {client.unlimited && <div className="alert good">{t('op.unlimited')}</div>}
           {!client.active && <div className="alert bad">{t('op.inactive')}</div>}
           {noBal && client.active && <div className="alert bad big">{t('op.nobal')}</div>}
           {!noBal && client.active && (
@@ -95,9 +97,11 @@ function Balance() {
       {c && (
         <div className="panel center">
           <h3>{c.full_name}</h3>
-          <p className="muted">{t('op.cc')} {c.id_number}</p>
-          <div className="bal">{money(c.balance)}</div>
-          {Number(c.balance) <= 0 && <div className="alert bad big">{t('op.nobal')}</div>}
+          <p className="muted">{t('op.cc')} {c.id_number}{c.bracelet_uid ? <> · 🔖 {t('op.bracelet')}: <b>{c.bracelet_label || c.bracelet_uid}</b></> : ''}</p>
+          {Number(c.balance) < 0 && <small>{t('op.owed')}</small>}
+          <div className="bal">{money(Math.abs(c.balance))}</div>
+          {c.unlimited && <div className="alert good">{t('op.unlimited')}</div>}
+          {!c.unlimited && Number(c.balance) <= 0 && <div className="alert bad big">{t('op.nobal')}</div>}
         </div>
       )}
     </div>

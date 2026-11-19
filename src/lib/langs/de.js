@@ -45,4 +45,5 @@ export default {
   'err.PIN_INVALIDO': 'Das Passwort muss aus 4 Ziffern bestehen.', 'err.CLAVE_CORTA': 'Das Passwort muss mindestens 6 Zeichen haben.',
   'err.DUPLICADO': 'Ein Eintrag mit dieser Ausweisnummer, diesem Benutzer oder Armband existiert bereits.', 'err.NO_AUTO_DESACTIVAR': 'Sie können Ihr eigenes Konto nicht löschen/deaktivieren.',
   'err.CODIGO_VACIO': 'Code scannen oder eingeben.', 'err.generic': 'Fehler: ',
+  "g.unlimited": "Unbegrenztes Guthaben · Zahlung beim Check-out", "g.owed": "Beim Check-out zu zahlen", "g.bracelets": "NFC-Armbänder", "tx.qr": "QR-Code", "op.unlimited": "∞ UNBEGRENZTES GUTHABEN · zahlt beim Check-out", "op.bracelet": "Armband", "op.owed": "Beim Check-out zu zahlen", "err.SALDO_PENDIENTE": "Der Gast hat offene Beträge. Bitte zuerst begleichen (Zahlung beim Check-out), bevor das unbegrenzte Guthaben deaktiviert wird.", "err.PULSERAS_INVALIDAS": "Ungültige Armbandliste.",
 }

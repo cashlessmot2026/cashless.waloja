@@ -45,4 +45,5 @@ export default {
   'err.PIN_INVALIDO': 'The password must be 4 digits.', 'err.CLAVE_CORTA': 'The password must be at least 6 characters.',
   'err.DUPLICADO': 'A record with that ID, username or wristband already exists.', 'err.NO_AUTO_DESACTIVAR': 'You cannot delete/deactivate your own account.',
   'err.CODIGO_VACIO': 'Scan or type a code.', 'err.generic': 'Error: ',
+  "g.unlimited": "Unlimited balance · you pay at checkout", "g.owed": "To pay at checkout", "g.bracelets": "NFC wristbands", "tx.qr": "QR code", "op.unlimited": "∞ UNLIMITED BALANCE · pays at checkout", "op.bracelet": "Wristband", "op.owed": "To pay at checkout", "err.SALDO_PENDIENTE": "The guest has unpaid charges. Settle them (checkout payment) before disabling unlimited balance.", "err.PULSERAS_INVALIDAS": "Invalid wristband list.",
 }

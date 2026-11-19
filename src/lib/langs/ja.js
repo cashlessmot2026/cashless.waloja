@@ -45,4 +45,5 @@ export default {
   'err.PIN_INVALIDO': 'パスワードは4桁の数字にしてください。', 'err.CLAVE_CORTA': 'パスワードは6文字以上にしてください。',
   'err.DUPLICADO': 'この身分証番号、ユーザー名、またはリストバンドは既に登録されています。', 'err.NO_AUTO_DESACTIVAR': 'ご自身のアカウントは削除／無効化できません。',
   'err.CODIGO_VACIO': 'コードをスキャンまたは入力してください。', 'err.generic': 'エラー：',
+  "g.unlimited": "残高無制限 · チェックアウト時にお支払い", "g.owed": "チェックアウト時のお支払い額", "g.bracelets": "NFCリストバンド", "tx.qr": "QRコード", "op.unlimited": "∞ 残高無制限 · チェックアウト時に精算", "op.bracelet": "リストバンド", "op.owed": "チェックアウト時のお支払い額", "err.SALDO_PENDIENTE": "未精算の利用額があります。残高無制限を解除する前に精算（チェックアウト時のお支払い）してください。", "err.PULSERAS_INVALIDAS": "リストバンドの一覧が無効です。",
 }

@@ -89,6 +89,33 @@ create table if not exists audit_log (
 );
 alter table audit_log enable row level security;
 
+-- v3: saldo ilimitado (paga en el checkout) -> el saldo puede quedar negativo (= deuda)
+alter table guests add column if not exists unlimited boolean not null default false;
+alter table guests drop constraint if exists guests_balance_check;
+alter table guests add constraint guests_balance_check check (unlimited or balance >= 0);
+
+-- v3: varias pulseras por huesped; todos los cobros van al mismo huesped
+create table if not exists bracelets (
+  id uuid primary key default gen_random_uuid(),
+  guest_id uuid not null references guests(id) on delete cascade,
+  uid text not null unique,
+  label text,                                   -- nombre de quien usa la pulsera
+  active boolean not null default true,
+  created_at timestamptz not null default now()
+);
+create index if not exists bracelets_guest_idx on bracelets(guest_id);
+alter table bracelets enable row level security;
+
+-- migra la pulsera unica de versiones anteriores
+insert into bracelets (guest_id, uid, label)
+select id, upper(nfc_uid), 'Titular' from guests where coalesce(nfc_uid,'') <> ''
+on conflict (uid) do nothing;
+update guests set nfc_uid = null where nfc_uid is not null;
+
+-- cada movimiento guarda con que pulsera se hizo (copia fija para el historial)
+alter table transactions add column if not exists bracelet_uid text;
+alter table transactions add column if not exists bracelet_label text;
+
 alter table venues enable row level security;
 alter table staff enable row level security;
 alter table guests enable row level security;
@@ -134,18 +161,55 @@ begin
   return g;
 end $$;
 
--- busca huésped por QR o UID NFC (y por cédula SOLO si p_allow_id, uso admin)
+-- busca huésped por QR o por cualquiera de sus pulseras (y por cédula SOLO si p_allow_id, uso admin)
 drop function if exists _find_guest(text);
 create or replace function _find_guest(p_code text, p_allow_id boolean default false)
 returns guests language plpgsql security definer set search_path = public, extensions as $$
 declare g guests; c text := _norm_code(p_code);
 begin
   if c = '' then raise exception 'CODIGO_VACIO'; end if;
-  select * into g from guests
-   where upper(qr_code) = c or upper(nfc_uid) = c
-      or (p_allow_id and upper(regexp_replace(id_number, '[^A-Za-z0-9]', '', 'g')) = c) limit 1;
+  select x.* into g from guests x
+   where upper(x.qr_code) = c
+      or (p_allow_id and upper(regexp_replace(x.id_number, '[^A-Za-z0-9]', '', 'g')) = c) limit 1;
+  if g.id is null then
+    select x.* into g from guests x join bracelets b on b.guest_id = x.id
+     where b.active and upper(b.uid) = c limit 1;
+  end if;
   if g.id is null then raise exception 'CLIENTE_NO_ENCONTRADO'; end if;
   return g;
+end $$;
+
+-- pulsera escaneada (null si se usó el QR o la cédula)
+create or replace function _bracelet_for(p_code text)
+returns bracelets language sql stable security definer set search_path = public as $$
+  select * from bracelets where active and upper(uid) = _norm_code(p_code) limit 1
+$$;
+
+create or replace function _guest_bracelets(p_guest uuid) returns jsonb
+language sql stable security definer set search_path = public as $$
+  select coalesce(jsonb_agg(jsonb_build_object('uid',uid,'label',label,'active',active) order by created_at), '[]'::jsonb)
+  from bracelets where guest_id = p_guest
+$$;
+
+-- reemplaza las pulseras del huesped por la lista recibida [{uid,label}]; null = no cambiar
+create or replace function _save_bracelets(p_guest uuid, p_list jsonb) returns void
+language plpgsql security definer set search_path = public as $$
+declare e jsonb; u text; keep text[] := '{}';
+begin
+  if p_list is null then return; end if;
+  if jsonb_typeof(p_list) <> 'array' then raise exception 'PULSERAS_INVALIDAS'; end if;
+  for e in select value from jsonb_array_elements(p_list) loop
+    u := _norm_code(e->>'uid');
+    if u = '' then continue; end if;
+    if u = any(keep) then raise exception 'DUPLICADO'; end if;
+    keep := keep || u;
+    insert into bracelets (guest_id, uid, label) values (p_guest, u, nullif(left(trim(coalesce(e->>'label','')),60),''))
+    on conflict (uid) do update set label = excluded.label where bracelets.guest_id = p_guest;
+    if not exists (select 1 from bracelets where uid = u and guest_id = p_guest) then
+      raise exception 'DUPLICADO';           -- la pulsera pertenece a otro huesped
+    end if;
+  end loop;
+  delete from bracelets where guest_id = p_guest and not (uid = any(keep));
 end $$;
 
 create or replace function _audit(p_staff uuid, p_action text, p_detail jsonb default null)
@@ -154,9 +218,10 @@ returns void language sql security definer set search_path = public as $$
 $$;
 
 create or replace function _guest_json(g guests) returns jsonb
-language sql stable as $$
+language sql stable security definer set search_path = public as $$
   select jsonb_build_object('id',g.id,'full_name',g.full_name,'id_type',g.id_type,
-    'id_number',g.id_number,'phone',g.phone,'balance',g.balance,'nfc_uid',g.nfc_uid,
+    'id_number',g.id_number,'phone',g.phone,'balance',g.balance,'unlimited',g.unlimited,
+    'bracelets',_guest_bracelets(g.id),
     'qr_code',g.qr_code,'check_in',g.check_in,'active',g.active,
     'consent_at',g.consent_at)
 $$;
@@ -246,7 +311,8 @@ begin
   g := _guest_from(p_token);
   return coalesce((select jsonb_agg(jsonb_build_object(
       'id',t.id,'type',t.type,'amount',t.amount,'description',t.description,
-      'venue',v.name,'created_at',t.created_at,'balance_after',t.balance_after) order by t.created_at desc)
+      'venue',v.name,'created_at',t.created_at,'balance_after',t.balance_after,
+      'bracelet_uid',t.bracelet_uid,'bracelet_label',t.bracelet_label) order by t.created_at desc)
     from transactions t left join venues v on v.id=t.venue_id
     where t.guest_id=g.id), '[]'::jsonb);
 end $$;
@@ -286,44 +352,51 @@ end $$;
 -- ---------- OPERARIO / ADMIN: consulta y cobro ----------
 create or replace function staff_lookup(p_token text, p_code text) returns jsonb
 language plpgsql security definer set search_path = public, extensions as $$
-declare s staff; g guests;
+declare s staff; g guests; b bracelets;
 begin
   s := _staff_from(p_token);
   g := _find_guest(p_code, s.role = 'admin');
+  b := _bracelet_for(p_code);
   return jsonb_build_object('id',g.id,'full_name',g.full_name,'id_number',g.id_number,
-    'balance',g.balance,'active',g.active,'nfc_uid',g.nfc_uid);
+    'balance',g.balance,'active',g.active,'unlimited',g.unlimited,
+    'bracelet_uid',b.uid,'bracelet_label',b.label);
 end $$;
 
 create or replace function operator_charge(p_token text, p_code text, p_amount numeric, p_description text default null)
 returns jsonb language plpgsql security definer set search_path = public, extensions as $$
-declare s staff; g guests;
+declare s staff; g guests; b bracelets;
 begin
   s := _staff_from(p_token);
   if p_amount is null or p_amount <= 0 or p_amount > 50000000 then raise exception 'MONTO_INVALIDO'; end if;
   p_amount := round(p_amount, 2);
   g := _find_guest(p_code, false);   -- el cobro exige QR o pulsera, nunca cédula
+  b := _bracelet_for(p_code);
   select * into g from guests where id = g.id for update;     -- bloqueo anti doble cobro
   if not g.active then raise exception 'CLIENTE_INACTIVO'; end if;
-  if g.balance <= 0 or g.balance < p_amount then raise exception 'SIN_SALDO'; end if;
+  -- con saldo ilimitado el cobro se acumula y se paga en el checkout (saldo negativo)
+  if not g.unlimited and (g.balance <= 0 or g.balance < p_amount) then raise exception 'SIN_SALDO'; end if;
   update guests set balance = balance - p_amount where id = g.id returning * into g;
-  insert into transactions(guest_id, venue_id, staff_id, type, amount, balance_after, description)
-  values (g.id, s.venue_id, s.id, 'charge', p_amount, g.balance, nullif(trim(p_description),''));
-  return jsonb_build_object('full_name',g.full_name,'balance',g.balance,'charged',p_amount);
+  insert into transactions(guest_id, venue_id, staff_id, type, amount, balance_after, description, bracelet_uid, bracelet_label)
+  values (g.id, s.venue_id, s.id, 'charge', p_amount, g.balance, nullif(trim(p_description),''), b.uid, b.label);
+  return jsonb_build_object('full_name',g.full_name,'balance',g.balance,'charged',p_amount,
+    'unlimited',g.unlimited,'bracelet_label',b.label,'bracelet_uid',b.uid);
 end $$;
 
 -- ---------- ADMIN: clientes ----------
+drop function if exists admin_create_guest(text,text,text,text,text,numeric,text,text);
 create or replace function admin_create_guest(p_token text, p_full_name text, p_id_type text,
-  p_id_number text, p_phone text, p_balance numeric, p_nfc_uid text, p_pin text)
+  p_id_number text, p_phone text, p_balance numeric, p_bracelets jsonb, p_pin text, p_unlimited boolean default false)
 returns jsonb language plpgsql security definer set search_path = public, extensions as $$
 declare s staff; g guests;
 begin
   s := _staff_from(p_token,'admin');
   perform _check_pin(p_pin);
   if coalesce(p_balance,0) < 0 or coalesce(p_balance,0) > 50000000 then raise exception 'MONTO_INVALIDO'; end if;
-  insert into guests(full_name,id_type,id_number,phone,balance,nfc_uid,pin_hash)
+  insert into guests(full_name,id_type,id_number,phone,balance,pin_hash,unlimited)
   values (trim(p_full_name), coalesce(nullif(p_id_type,''),'CC'), trim(p_id_number), nullif(trim(p_phone),''),
-          coalesce(p_balance,0), nullif(_norm_code(p_nfc_uid),''), crypt(p_pin, gen_salt('bf')))
+          coalesce(p_balance,0), crypt(p_pin, gen_salt('bf')), coalesce(p_unlimited,false))
   returning * into g;
+  perform _save_bracelets(g.id, coalesce(p_bracelets,'[]'::jsonb));
   if g.balance > 0 then
     insert into transactions(guest_id,type,amount,balance_after,description,staff_id)
     values (g.id,'topup',g.balance,g.balance,'Saldo inicial',s.id);
@@ -332,20 +405,55 @@ begin
 exception when unique_violation then raise exception 'DUPLICADO';
 end $$;
 
+drop function if exists admin_update_guest(text,uuid,text,text,text,text,text,boolean,text);
 create or replace function admin_update_guest(p_token text, p_id uuid, p_full_name text, p_id_type text,
-  p_id_number text, p_phone text, p_nfc_uid text, p_active boolean, p_pin text default null)
+  p_id_number text, p_phone text, p_bracelets jsonb, p_active boolean, p_pin text default null)
 returns jsonb language plpgsql security definer set search_path = public, extensions as $$
 declare g guests;
 begin
   perform _staff_from(p_token,'admin');
+  if p_pin is not null and p_pin <> '' then perform _check_pin(p_pin); end if;
   update guests set full_name=trim(p_full_name), id_type=p_id_type, id_number=trim(p_id_number),
-    phone=nullif(trim(p_phone),''), nfc_uid=nullif(_norm_code(p_nfc_uid),''), active=p_active,
+    phone=nullif(trim(p_phone),''), active=p_active,
     pin_hash = case when p_pin is null or p_pin='' then pin_hash else crypt(p_pin, gen_salt('bf')) end
   where id=p_id returning * into g;
-  if p_pin is not null and p_pin <> '' then perform _check_pin(p_pin); end if;
   if g.id is null then raise exception 'CLIENTE_NO_ENCONTRADO'; end if;
+  perform _save_bracelets(g.id, p_bracelets);     -- null = no cambia las pulseras
   return _guest_json(g);
 exception when unique_violation then raise exception 'DUPLICADO';
+end $$;
+
+-- activa/desactiva el saldo ilimitado (paga en el checkout) de un cliente
+create or replace function admin_set_unlimited(p_token text, p_id uuid, p_value boolean)
+returns jsonb language plpgsql security definer set search_path = public, extensions as $$
+declare s staff; g guests;
+begin
+  s := _staff_from(p_token,'admin');
+  select * into g from guests where id = p_id for update;
+  if g.id is null then raise exception 'CLIENTE_NO_ENCONTRADO'; end if;
+  if not coalesce(p_value,false) and g.balance < 0 then raise exception 'SALDO_PENDIENTE'; end if;
+  update guests set unlimited = coalesce(p_value,false) where id = p_id returning * into g;
+  perform _audit(s.id, 'set_unlimited', jsonb_build_object('guest',g.id,'value',g.unlimited));
+  return _guest_json(g);
+end $$;
+
+-- ficha completa del cliente: datos, totales e historial de todos sus movimientos
+create or replace function admin_guest_detail(p_token text, p_id uuid) returns jsonb
+language plpgsql security definer set search_path = public, extensions as $$
+declare g guests;
+begin
+  perform _staff_from(p_token,'admin');
+  select * into g from guests where id = p_id;
+  if g.id is null then raise exception 'CLIENTE_NO_ENCONTRADO'; end if;
+  return _guest_json(g) || jsonb_build_object(
+    'total_spent', coalesce((select sum(amount) from transactions where guest_id=g.id and type='charge'),0),
+    'total_topup', coalesce((select sum(amount) from transactions where guest_id=g.id and type='topup'),0),
+    'transactions', coalesce((select jsonb_agg(jsonb_build_object(
+        'id',t.id,'type',t.type,'amount',t.amount,'description',t.description,'created_at',t.created_at,
+        'balance_after',t.balance_after,'venue',v.name,'staff',st.full_name,
+        'bracelet_uid',t.bracelet_uid,'bracelet_label',t.bracelet_label) order by t.created_at desc)
+      from transactions t left join venues v on v.id=t.venue_id left join staff st on st.id=t.staff_id
+      where t.guest_id=g.id), '[]'::jsonb));
 end $$;
 
 create or replace function admin_delete_guest(p_token text, p_id uuid) returns void
@@ -415,10 +523,11 @@ begin
   perform _staff_from(p_token,'admin');
   return coalesce((select jsonb_agg(x) from (
     select jsonb_build_object('id',t.id,'type',t.type,'amount',t.amount,'created_at',t.created_at,
-      'guest',g.full_name,'venue',v.name,'staff',st.full_name,'description',t.description) x
+      'guest',g.full_name,'guest_id',g.id,'id_number',g.id_number,'venue',v.name,'staff',st.full_name,
+      'description',t.description,'bracelet_uid',t.bracelet_uid,'bracelet_label',t.bracelet_label) x
     from transactions t join guests g on g.id=t.guest_id
     left join venues v on v.id=t.venue_id left join staff st on st.id=t.staff_id
-    order by t.created_at desc limit 100) q), '[]'::jsonb);
+    order by t.created_at desc limit 300) q), '[]'::jsonb);
 end $$;
 
 -- ---------- ADMIN: lugares (venues) ----------

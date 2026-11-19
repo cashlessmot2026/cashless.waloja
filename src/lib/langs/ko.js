@@ -45,4 +45,5 @@ export default {
   'err.PIN_INVALIDO': '비밀번호는 숫자 4자리여야 합니다.', 'err.CLAVE_CORTA': '비밀번호는 6자 이상이어야 합니다.',
   'err.DUPLICADO': '해당 신분증, 사용자 또는 팔찌가 이미 등록되어 있습니다.', 'err.NO_AUTO_DESACTIVAR': '본인 계정은 삭제/비활성화할 수 없습니다.',
   'err.CODIGO_VACIO': '코드를 스캔하거나 입력하세요.', 'err.generic': '오류: ',
+  "g.unlimited": "무제한 잔액 · 체크아웃 시 결제", "g.owed": "체크아웃 시 결제 금액", "g.bracelets": "NFC 팔찌", "tx.qr": "QR 코드", "op.unlimited": "∞ 무제한 잔액 · 체크아웃 시 결제", "op.bracelet": "팔찌", "op.owed": "체크아웃 시 결제 금액", "err.SALDO_PENDIENTE": "미결제 금액이 있습니다. 무제한 잔액을 해제하기 전에 정산(체크아웃 결제)하세요.", "err.PULSERAS_INVALIDAS": "팔찌 목록이 올바르지 않습니다.",
 }

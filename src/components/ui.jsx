@@ -3,7 +3,7 @@ import InstallButton, { LOGO } from './Install'
 import { t } from '../lib/i18n'
 import LanguageSelect from './Lang'
 
-export function Modal({ title, onClose, children }) {
+export function Modal({ title, onClose, children, wide }) {
   useEffect(() => {
     const h = (e) => e.key === 'Escape' && onClose()
     window.addEventListener('keydown', h)
@@ -11,7 +11,7 @@ export function Modal({ title, onClose, children }) {
   }, [onClose])
   return (
     <div className="modal" onClick={onClose}>
-      <div className="sheet" onClick={(e) => e.stopPropagation()}>
+      <div className={'sheet' + (wide ? ' wide' : '')} onClick={(e) => e.stopPropagation()}>
         <div className="sheet-head"><h3>{title}</h3><button className="x" onClick={onClose} aria-label={t('common.close')}>✕</button></div>
         {children}
       </div>
@@ -33,7 +33,7 @@ export function Shell({ title, subtitle, tabs, tab, setTab, onLogout, fab, child
           </button>
         ))}
         {fab && <button className="rail-item" onClick={fab.onClick}><span>▣</span>{fab.label}</button>}
-        <div style={{ marginTop: "auto" }}><LanguageSelect className="rail" /><InstallButton className="rail-item" /></div>
+        <div style={{ marginTop: "auto" }}><LanguageSelect className="in-rail" /><InstallButton className="rail-item" /></div>
         <button className="rail-item" onClick={onLogout}><span>⎋</span>{t('common.logout')}</button>
       </aside>
       <main className="main">

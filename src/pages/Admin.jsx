@@ -10,8 +10,11 @@ const ID_TYPES = ['CC', 'CE', 'TI', 'Pasaporte', 'NIT', 'Otro']
 
 export default function Admin({ onLogout }) {
   const [tab, setTab] = useState('guests')
+  const [detail, setDetail] = useState(null) // id del cliente abierto
+  const [ver, setVer] = useState(0)          // refresca listas al cerrar la ficha
   const tabs = [
     { id: 'guests', icon: '👥', label: 'Clientes' },
+    { id: 'history', icon: '🧾', label: 'Historial' },
     { id: 'topup', icon: '＋', label: 'Recargar' },
     { id: 'staff', icon: '🧑‍🍳', label: 'Operarios' },
     { id: 'venues', icon: '🏨', label: 'Lugares' },
@@ -20,12 +23,14 @@ export default function Admin({ onLogout }) {
   ]
   return (
     <Shell title="Administrador" subtitle="Panel de control" tabs={tabs} tab={tab} setTab={setTab} onLogout={onLogout}>
-      {tab === 'guests' && <Guests />}
+      {tab === 'guests' && <Guests onOpen={setDetail} ver={ver} />}
+      {tab === 'history' && <History onOpen={setDetail} ver={ver} />}
       {tab === 'topup' && <Topup />}
       {tab === 'staff' && <Staff />}
       {tab === 'venues' && <Venues />}
       {tab === 'stock' && <Stock />}
       {tab === 'acc' && <AccountForm />}
+      {detail && <GuestDetail id={detail} onClose={() => { setDetail(null); setVer((v) => v + 1) }} />}
     </Shell>
   )
 }
@@ -40,27 +45,70 @@ const useList = (fn, args = {}) => {
 const Msg = ({ m }) => m ? <div className={'alert small ' + (m.ok ? 'good' : 'bad')}>{m.t}</div> : null
 const confirmDel = (what) => window.confirm(`¿Eliminar ${what}? Esta acción no se puede deshacer.`)
 
+// saldo: si es negativo (saldo ilimitado) es lo que debe pagar en el checkout
+const Bal = ({ v }) => Number(v) < 0
+  ? <b className="neg">{money(-v)} <small>por pagar</small></b>
+  : <b>{money(v)}</b>
+
+const braceletText = (t) => t.bracelet_label || t.bracelet_uid
+  ? `🔖 ${t.bracelet_label || ''}${t.bracelet_label && t.bracelet_uid ? ` (${t.bracelet_uid})` : t.bracelet_uid || ''}`
+  : (t.type === 'charge' ? '▣ QR' : '')
+
+function TxRow({ t: x, showGuest, onOpen }) {
+  const charge = x.type === 'charge'
+  const extra = [dt(x.created_at), x.venue, braceletText(x), x.staff && `por ${x.staff}`].filter(Boolean).join(' · ')
+  return (
+    <div className={'item' + (onOpen ? ' btnrow' : '')} onClick={onOpen} role={onOpen ? 'button' : undefined}>
+      <div className={'avatar ' + x.type}>{charge ? '↘' : '↗'}</div>
+      <div className="grow">
+        <b>{showGuest && <>{x.guest} · </>}{x.description || (charge ? 'Consumo' : 'Recarga de saldo')}</b>
+        <small>{extra}</small>
+      </div>
+      <div className="end">
+        <b className={charge ? 'neg' : 'pos'}>{charge ? '-' : '+'}{money(x.amount)}</b>
+        {x.balance_after != null && !showGuest && <small>saldo {money(x.balance_after)}</small>}
+      </div>
+    </div>
+  )
+}
+
+function Filter({ value, onChange, counts }) {
+  return (
+    <div className="seg seg3">
+      {[['all', 'Todos'], ['charge', 'Consumos'], ['topup', 'Recargas']].map(([k, l]) => (
+        <button key={k} type="button" className={value === k ? 'on' : ''} onClick={() => onChange(k)}>{l}{counts ? ` (${counts[k]})` : ''}</button>
+      ))}
+    </div>
+  )
+}
+const countBy = (rows) => ({ all: rows.length, charge: rows.filter((r) => r.type === 'charge').length, topup: rows.filter((r) => r.type === 'topup').length })
+
 /* ---------------- CLIENTES ---------------- */
-function Guests() {
+function Guests({ onOpen, ver }) {
   const [q, setQ] = useState('')
   const [list, load] = useList('admin_list_guests', { p_search: q || null })
+  useEffect(() => { if (ver) load() }, [ver])
   const [edit, setEdit] = useState(null) // {} nuevo | guest
   const del = async (g) => { if (confirmDel(g.full_name)) { await rpc('admin_delete_guest', { p_id: g.id }).catch((e) => alert(e.message)); load() } }
-  const toggle = async (g) => { await rpc('admin_update_guest', { p_id: g.id, p_full_name: g.full_name, p_id_type: g.id_type, p_id_number: g.id_number, p_phone: g.phone, p_nfc_uid: g.nfc_uid, p_active: !g.active }); load() }
+  const toggle = async (g) => { await rpc('admin_update_guest', { p_id: g.id, p_full_name: g.full_name, p_id_type: g.id_type, p_id_number: g.id_number, p_phone: g.phone, p_bracelets: null, p_active: !g.active }).catch((e) => alert(e.message)); load() }
   return (
     <div className="stack">
       <div className="row">
         <input type="search" placeholder="Buscar por cédula, nombre o teléfono…" value={q} onChange={(e) => setQ(e.target.value)} />
         <button className="btn small" onClick={() => setEdit({})}>＋ Nuevo</button>
       </div>
+      <p className="hint">Toca un cliente para ver su ficha, su historial de transacciones y activar el saldo ilimitado.</p>
       <div className="list panel">
         {list.length === 0 && <p className="muted">Sin clientes.</p>}
         {list.map((g) => (
           <div key={g.id} className="item wrapm">
-            <div className="grow"><b>{g.full_name} {!g.active && <em className="tag off">inactivo</em>}</b>
-              <small>{g.id_type} {g.id_number} · {g.phone || 'sin tel.'} · NFC: {g.nfc_uid || '—'}</small></div>
-            <b>{money(g.balance)}</b>
+            <button type="button" className="grow linkrow" onClick={() => onOpen(g.id)}>
+              <b>{g.full_name} {!g.active && <em className="tag off">inactivo</em>}{g.unlimited && <em className="tag inf">∞ ilimitado</em>}</b>
+              <small>{g.id_type} {g.id_number} · {g.phone || 'sin tel.'} · 🔖 {g.bracelets.length ? g.bracelets.map((b) => b.label || b.uid).join(', ') : 'sin pulsera'}</small>
+            </button>
+            <Bal v={g.balance} />
             <div className="acts">
+              <button className="btn small" onClick={() => onOpen(g.id)}>Ver historial</button>
               <button className="btn ghost small" onClick={() => setEdit(g)}>Editar</button>
               <button className="btn ghost small" onClick={() => toggle(g)}>{g.active ? 'Desactivar' : 'Activar'}</button>
               <button className="btn danger small" onClick={() => del(g)}>Eliminar</button>
@@ -73,16 +121,131 @@ function Guests() {
   )
 }
 
+/* ---------------- FICHA DEL CLIENTE + HISTORIAL ---------------- */
+function GuestDetail({ id, onClose }) {
+  const [d, setD] = useState(null)
+  const [m, setM] = useState(null)
+  const [filter, setFilter] = useState('all')
+  const [edit, setEdit] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const load = useCallback(() => rpc('admin_guest_detail', { p_id: id }).then(setD).catch((e) => setM({ ok: false, t: e.message })), [id])
+  useEffect(() => { load() }, [load])
+
+  const setUnlimited = async (v) => {
+    if (!v || window.confirm('El cliente podrá consumir aunque no tenga saldo. Lo consumido se acumula y se paga en el checkout. ¿Activar?')) {
+      setBusy(true); setM(null)
+      try {
+        await rpc('admin_set_unlimited', { p_id: id, p_value: v }); await load()
+        setM({ ok: true, t: v ? 'Saldo ilimitado activado: los consumos se pagan en el checkout.' : 'Saldo ilimitado desactivado.' })
+      } catch (x) { setM({ ok: false, t: x.message }) }
+      setBusy(false)
+    }
+  }
+  const rows = d ? d.transactions.filter((x) => filter === 'all' || x.type === filter) : []
+  const owed = d && Number(d.balance) < 0
+
+  return (
+    <Modal title={d ? d.full_name : 'Cliente'} onClose={onClose} wide>
+      {!d ? (m ? <Msg m={m} /> : <p className="muted">Cargando…</p>) : (
+        <div className="stack">
+          <div className="card-wallet">
+            <div className="between"><span>{owed ? 'Por pagar en el checkout' : 'Saldo disponible'}</span>{!d.active && <em className="tag off">inactivo</em>}</div>
+            <div className="big">{money(Math.abs(d.balance))}</div>
+            <div className="between small">
+              <span>{d.id_type} {d.id_number}<br />{d.phone || 'sin teléfono'}</span>
+              <span style={{ textAlign: 'end' }}>Inicio de reserva<br /><b>{dt(d.check_in)}</b></span>
+            </div>
+          </div>
+
+          <label className={'switch' + (d.unlimited ? ' on' : '')}>
+            <input type="checkbox" checked={d.unlimited} disabled={busy} onChange={(e) => setUnlimited(e.target.checked)} />
+            <span className="knob" aria-hidden="true" />
+            <span><b>Saldo ilimitado</b> — paga en el checkout<br /><small>{d.unlimited ? 'Activo: puede consumir sin saldo; lo consumido se acumula como deuda.' : 'Inactivo: solo puede consumir hasta su saldo.'}</small></span>
+          </label>
+          {owed && <div className="alert warn small">Debe {money(-d.balance)}. Para liquidar en el checkout, ve a <b>Recargar</b> y carga ese valor; luego podrás desactivar el saldo ilimitado.</div>}
+          <Msg m={m} />
+
+          <div className="grid2">
+            <div className="chip in"><span>↗</span><div><small>Recargas</small><b>{money(d.total_topup)}</b></div></div>
+            <div className="chip out"><span>↘</span><div><small>Consumos</small><b>{money(d.total_spent)}</b></div></div>
+          </div>
+
+          <div className="panel">
+            <h3>Pulseras ({d.bracelets.length})</h3>
+            {d.bracelets.length === 0 ? <p className="muted">Sin pulseras asignadas.</p> : (
+              <div className="list">{d.bracelets.map((b) => (
+                <div key={b.uid} className="item"><div className="grow"><b>🔖 {b.label || 'Sin nombre'}</b><small>UID {b.uid}</small></div>
+                  <small>{d.transactions.filter((x) => x.bracelet_uid === b.uid && x.type === 'charge').length} cobros</small></div>))}
+              </div>
+            )}
+          </div>
+
+          <div className="panel">
+            <div className="between"><h3>Historial de transacciones</h3></div>
+            <Filter value={filter} onChange={setFilter} counts={countBy(d.transactions)} />
+            {rows.length === 0 ? <p className="muted">Sin movimientos.</p> : <div className="list">{rows.map((x) => <TxRow key={x.id} t={x} />)}</div>}
+          </div>
+
+          <button className="btn ghost" onClick={() => setEdit(true)}>✎ Editar cliente / pulseras</button>
+        </div>
+      )}
+      {edit && d && <GuestForm g={d} onClose={() => setEdit(false)} onSaved={() => { setEdit(false); load() }} />}
+    </Modal>
+  )
+}
+
+/* ---------------- HISTORIAL GENERAL ---------------- */
+function History({ onOpen, ver }) {
+  const [list, load] = useList('admin_recent_transactions')
+  useEffect(() => { if (ver) load() }, [ver])
+  const [q, setQ] = useState('')
+  const [filter, setFilter] = useState('all')
+  const term = q.trim().toLowerCase()
+  const byText = list.filter((x) => !term || [x.guest, x.id_number, x.bracelet_label, x.bracelet_uid, x.venue, x.staff, x.description].join(' ').toLowerCase().includes(term))
+  const rows = byText.filter((x) => filter === 'all' || x.type === filter)
+  const sum = (type) => byText.filter((x) => x.type === type).reduce((a, x) => a + Number(x.amount), 0)
+  return (
+    <div className="stack">
+      <div className="row">
+        <input type="search" placeholder="Filtrar por cliente, cédula, pulsera, lugar u operario…" value={q} onChange={(e) => setQ(e.target.value)} />
+        <button className="btn ghost small" onClick={load}>↻</button>
+      </div>
+      <div className="grid2">
+        <div className="chip in"><span>↗</span><div><small>Recargas</small><b>{money(sum('topup'))}</b></div></div>
+        <div className="chip out"><span>↘</span><div><small>Consumos</small><b>{money(sum('charge'))}</b></div></div>
+      </div>
+      <Filter value={filter} onChange={setFilter} counts={countBy(byText)} />
+      <div className="list panel">
+        {rows.length === 0 && <p className="muted">Sin movimientos.</p>}
+        {rows.map((x) => <TxRow key={x.id} t={x} showGuest onOpen={() => onOpen(x.guest_id)} />)}
+      </div>
+      <p className="hint">Se muestran los últimos 300 movimientos. Toca uno para abrir la ficha completa del cliente.</p>
+    </div>
+  )
+}
+
+/* ---------------- FORMULARIO DE CLIENTE (varias pulseras) ---------------- */
 function GuestForm({ g, onClose, onSaved }) {
   const isNew = !g.id
-  const [f, setF] = useState({ full_name: g.full_name || '', id_type: g.id_type || 'CC', id_number: g.id_number || '', phone: g.phone || '', balance: '', nfc_uid: g.nfc_uid || '', pin: '', active: g.active ?? true })
+  const [f, setF] = useState({ full_name: g.full_name || '', id_type: g.id_type || 'CC', id_number: g.id_number || '', phone: g.phone || '', balance: '', pin: '', active: g.active ?? true, unlimited: false })
+  const [br, setBr] = useState(g.bracelets?.length ? g.bracelets.map((b) => ({ uid: b.uid, label: b.label || '' })) : [{ uid: '', label: '' }])
   const [m, setM] = useState(null)
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value })
+  const upd = (i, patch) => setBr((list) => list.map((b, j) => (j === i ? { ...b, ...patch } : b)))
+  const remove = (i) => setBr((list) => (list.length === 1 ? [{ uid: '', label: '' }] : list.filter((_, j) => j !== i)))
+  const addScanned = (uid) => setBr((list) => {
+    if (!uid || list.some((b) => b.uid === uid)) return list
+    const i = list.findIndex((b) => !b.uid)
+    return i >= 0 ? list.map((b, j) => (j === i ? { ...b, uid } : b)) : [...list, { uid, label: '' }]
+  })
+
   const save = async (e) => {
     e.preventDefault(); setM(null)
+    const list = br.filter((b) => b.uid).map((b) => ({ uid: normUid(b.uid), label: b.label.trim() }))
+    if (new Set(list.map((b) => b.uid)).size !== list.length) { setM({ ok: false, t: 'Hay una pulsera repetida en la lista.' }); return }
     try {
-      if (isNew) await rpc('admin_create_guest', { p_full_name: f.full_name, p_id_type: f.id_type, p_id_number: f.id_number, p_phone: f.phone, p_balance: Number(f.balance || 0), p_nfc_uid: f.nfc_uid, p_pin: f.pin })
-      else await rpc('admin_update_guest', { p_id: g.id, p_full_name: f.full_name, p_id_type: f.id_type, p_id_number: f.id_number, p_phone: f.phone, p_nfc_uid: f.nfc_uid, p_active: f.active, p_pin: f.pin || null })
+      if (isNew) await rpc('admin_create_guest', { p_full_name: f.full_name, p_id_type: f.id_type, p_id_number: f.id_number, p_phone: f.phone, p_balance: Number(f.balance || 0), p_bracelets: list, p_pin: f.pin, p_unlimited: f.unlimited })
+      else await rpc('admin_update_guest', { p_id: g.id, p_full_name: f.full_name, p_id_type: f.id_type, p_id_number: f.id_number, p_phone: f.phone, p_bracelets: list, p_active: f.active, p_pin: f.pin || null })
       onSaved()
     } catch (x) { setM({ ok: false, t: x.message }) }
   }
@@ -91,16 +254,30 @@ function GuestForm({ g, onClose, onSaved }) {
       <form onSubmit={save} className="stack">
         <Field label="Nombre completo"><input value={f.full_name} onChange={set('full_name')} required /></Field>
         <div className="grid2">
-          <Field label="Tipo de identificación"><select value={f.id_type} onChange={set('id_type')}>{ID_TYPES.map((t) => <option key={t}>{t}</option>)}</select></Field>
+          <Field label="Tipo de identificación"><select value={f.id_type} onChange={set('id_type')}>{ID_TYPES.map((x) => <option key={x}>{x}</option>)}</select></Field>
           <Field label="Número"><input value={f.id_number} onChange={set('id_number')} required /></Field>
         </div>
         <Field label="Teléfono"><input type="tel" value={f.phone} onChange={set('phone')} /></Field>
         {isNew && <Field label="Saldo inicial"><input type="number" inputMode="decimal" min="0" step="any" value={f.balance} onChange={set('balance')} placeholder="0" /></Field>}
-        <Field label="Pulsera NFC (escanea o escribe el UID)">
-          <input value={f.nfc_uid} onChange={(e) => setF({ ...f, nfc_uid: normUid(e.target.value) })}
-            onKeyDown={(e) => e.key === 'Enter' && e.preventDefault()} placeholder="Enfoca aquí y escanea con el lector USB" />
-        </Field>
-        <ScanField compact qr={false} onScan={(u) => setF((s) => ({ ...s, nfc_uid: normUid(u) }))} />
+        {isNew && (
+          <label className="check"><input type="checkbox" checked={f.unlimited} onChange={(e) => setF({ ...f, unlimited: e.target.checked })} />
+            <span><b>Saldo ilimitado</b> (paga en el checkout)</span></label>
+        )}
+
+        <div className="field">
+          <span>Pulseras NFC — todos los cobros se cargan a este cliente</span>
+          {br.map((b, i) => (
+            <div key={i} className="brow">
+              <input className="uid" value={b.uid} placeholder="UID (enfoca y escanea)" autoCapitalize="characters"
+                onChange={(e) => upd(i, { uid: normUid(e.target.value) })} onKeyDown={(e) => e.key === 'Enter' && e.preventDefault()} />
+              <input value={b.label} maxLength={60} placeholder="Nombre de quien la usa" onChange={(e) => upd(i, { label: e.target.value })} />
+              <button type="button" className="x" onClick={() => remove(i)} aria-label="Quitar pulsera">✕</button>
+            </div>
+          ))}
+          <button type="button" className="btn ghost small" onClick={() => setBr((list) => [...list, { uid: '', label: '' }])}>＋ Agregar otra pulsera</button>
+        </div>
+        <ScanField compact qr={false} onScan={(u) => addScanned(normUid(u))} />
+
         <Field label={isNew ? 'Contraseña del cliente (4 dígitos)' : 'Nueva contraseña (vacío = no cambiar)'}>
           <input inputMode="numeric" maxLength={4} pattern={isNew ? '[0-9]{4}' : '([0-9]{4})?'} value={f.pin} onChange={set('pin')} required={isNew} />
         </Field>
@@ -140,7 +317,9 @@ function Topup() {
       {c && (
         <form className="panel stack" onSubmit={go}>
           <h3>2. Recargar a {c.full_name}</h3>
+          {Number(c.balance) < 0 && <small className="neg">Por pagar en el checkout (la recarga salda la deuda)</small>}
           <div className="bal">{money(c.balance)}</div>
+          {c.unlimited && <div className="alert good small">∞ Saldo ilimitado · paga en el checkout</div>}
           <Field label="Valor a cargar"><input type="number" inputMode="decimal" min="1" step="any" value={amt} onChange={(e) => setAmt(e.target.value)} required autoFocus /></Field>
           <button className="btn">Recargar</button>
         </form>

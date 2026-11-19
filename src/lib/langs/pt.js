@@ -45,4 +45,5 @@ export default {
   'err.PIN_INVALIDO': 'A senha deve ter 4 dígitos.', 'err.CLAVE_CORTA': 'A senha deve ter no mínimo 6 caracteres.',
   'err.DUPLICADO': 'Já existe um registro com esse documento, usuário ou pulseira.', 'err.NO_AUTO_DESACTIVAR': 'Você não pode excluir/desativar sua própria conta.',
   'err.CODIGO_VACIO': 'Escaneie ou digite um código.', 'err.generic': 'Erro: ',
+  "g.unlimited": "Saldo ilimitado · você paga no checkout", "g.owed": "A pagar no checkout", "g.bracelets": "Pulseiras NFC", "tx.qr": "Código QR", "op.unlimited": "∞ SALDO ILIMITADO · paga no checkout", "op.bracelet": "Pulseira", "op.owed": "A pagar no checkout", "err.SALDO_PENDIENTE": "O hóspede tem consumos pendentes. Quite-os (pagamento no checkout) antes de desativar o saldo ilimitado.", "err.PULSERAS_INVALIDAS": "Lista de pulseiras inválida.",
 }

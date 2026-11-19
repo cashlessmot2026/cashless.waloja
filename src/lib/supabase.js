@@ -17,7 +17,7 @@ export const session = {
 
 const CODES = ['SIN_SALDO', 'SESION_INVALIDA', 'SIN_PERMISO', 'CREDENCIALES_INVALIDAS', 'CUENTA_BLOQUEADA',
   'CLIENTE_NO_ENCONTRADO', 'CLIENTE_INACTIVO', 'MONTO_INVALIDO', 'PIN_INVALIDO', 'CLAVE_CORTA', 'DUPLICADO',
-  'NO_AUTO_DESACTIVAR', 'CODIGO_VACIO']
+  'NO_AUTO_DESACTIVAR', 'CODIGO_VACIO', 'SALDO_PENDIENTE', 'PULSERAS_INVALIDAS']
 export const friendly = (m = '') => {
   const k = CODES.find((x) => m.includes(x))
   return k ? t('err.' + k) : t('err.generic') + m

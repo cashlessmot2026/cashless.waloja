@@ -45,4 +45,5 @@ export default {
   'err.PIN_INVALIDO': '密码必须为4位数字。', 'err.CLAVE_CORTA': '密码至少需要6个字符。',
   'err.DUPLICADO': '该证件号、用户名或手环已存在。', 'err.NO_AUTO_DESACTIVAR': '您不能删除/停用自己的账户。',
   'err.CODIGO_VACIO': '请扫描或输入代码。', 'err.generic': '错误：',
+  "g.unlimited": "无限额度 · 退房时结算", "g.owed": "退房时应付", "g.bracelets": "NFC 手环", "tx.qr": "二维码", "op.unlimited": "∞ 无限额度 · 退房时结算", "op.bracelet": "手环", "op.owed": "退房时应付", "err.SALDO_PENDIENTE": "该住客有未结清的消费，请先结清（退房付款）再关闭无限额度。", "err.PULSERAS_INVALIDAS": "手环列表无效。",
 }
