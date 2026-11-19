@@ -4,8 +4,10 @@ import Login from './pages/Login'
 import Guest from './pages/Guest'
 import Operator from './pages/Operator'
 import Admin from './pages/Admin'
+import { useLang } from './lib/i18n'
 
 export default function App() {
+  useLang()
   const [role, setRole] = useState(session.token ? session.role : null)
 
   useEffect(() => {

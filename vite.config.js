@@ -13,9 +13,9 @@ export default defineConfig({
       includeAssets: ['logo.png', 'favicon.png', 'apple-touch-icon.png'],
       manifest: {
         id: base,
-        name: 'Cashless Hotel',
-        short_name: 'Cashless',
-        description: 'Sistema cashless NFC para hotel: saldo, consumos y pagos con pulsera o QR.',
+        name: 'Waloja',
+        short_name: 'Waloja',
+        description: 'Luxury Homes',
         lang: 'es',
         categories: ['finance', 'travel', 'lifestyle'],
         theme_color: '#0b0f2a',

@@ -4,18 +4,19 @@ import { rpc, money } from '../lib/supabase'
 import { Shell, Field } from '../components/ui'
 import ScanField from '../components/ScanField'
 import { AccountForm } from './Admin'
+import { t } from '../lib/i18n'
 
 export default function Operator({ onLogout }) {
   const [tab, setTab] = useState('charge')
   const [me, setMe] = useState(null)
   useEffect(() => { rpc('staff_me').then(setMe).catch(() => {}) }, [])
   const tabs = [
-    { id: 'charge', icon: '💳', label: 'Cobrar' },
-    { id: 'balance', icon: '👁', label: 'Saldo' },
-    { id: 'acc', icon: '◉', label: 'Cuenta' },
+    { id: 'charge', icon: '💳', label: t('tab.charge') },
+    { id: 'balance', icon: '👁', label: t('tab.balance') },
+    { id: 'acc', icon: '◉', label: t('tab.acc') },
   ]
   return (
-    <Shell title="Operario" subtitle={me ? `${me.full_name} · ${me.venue_name || 'Sin lugar asignado'}` : ''}
+    <Shell title={t('op.title')} subtitle={me ? `${me.full_name} · ${me.venue_name || t('op.novenue')}` : ''}
       tabs={tabs} tab={tab} setTab={setTab} onLogout={onLogout}>
       {tab === 'charge' && <Charge noVenue={me && !me.venue_id} />}
       {tab === 'balance' && <Balance />}
@@ -42,7 +43,7 @@ function Charge({ noVenue }) {
     setBusy(true); setRes(null)
     try {
       const r = await rpc('operator_charge', { p_code: code, p_amount: Number(amount) })
-      setRes({ ok: true, msg: `Cobro exitoso: ${money(r.charged)}. Saldo restante: ${money(r.balance)}` })
+      setRes({ ok: true, msg: t('op.ok', { a: money(r.charged), b: money(r.balance) }) })
       setClient({ ...client, balance: r.balance }); setAmount('')
     } catch (x) { setRes({ ok: false, msg: x.message }); if (x.code?.includes('SIN_SALDO')) setClient((c) => c && { ...c, balance: Math.min(c.balance, 0) }) }
     setBusy(false)
@@ -52,25 +53,25 @@ function Charge({ noVenue }) {
 
   return (
     <div className="stack narrow">
-      {noVenue && <div className="alert warn">Tu usuario no tiene lugar asignado. Pide al administrador que te asigne Bar/Restaurante.</div>}
-      <div className="panel"><h3>Escanear cliente</h3><ScanField onScan={scan} placeholder="Lector USB + Enter (QR / pulsera)" /></div>
+      {noVenue && <div className="alert warn">{t('op.warn')}</div>}
+      <div className="panel"><h3>{t('op.scan')}</h3><ScanField onScan={scan} placeholder={t('op.ph')} /></div>
 
       {res && !client && <div className="alert bad">{res.msg}</div>}
 
       {client && (
         <div className="panel">
-          <div className="between"><h3>{client.full_name}</h3><button className="btn ghost small" onClick={reset}>Nuevo</button></div>
-          <p className="muted">CC {client.id_number}</p>
+          <div className="between"><h3>{client.full_name}</h3><button className="btn ghost small" onClick={reset}>{t('common.new')}</button></div>
+          <p className="muted">{t('op.cc')} {client.id_number}</p>
           <div className="bal">{money(client.balance)}</div>
-          {!client.active && <div className="alert bad">CLIENTE INACTIVO</div>}
-          {noBal && client.active && <div className="alert bad big">⚠ CLIENTE SIN SALDO</div>}
+          {!client.active && <div className="alert bad">{t('op.inactive')}</div>}
+          {noBal && client.active && <div className="alert bad big">{t('op.nobal')}</div>}
           {!noBal && client.active && (
             <form onSubmit={charge} className="stack">
-              <Field label="Valor a cobrar">
+              <Field label={t('op.amount')}>
                 <input type="number" inputMode="decimal" min="1" step="any" value={amount} onChange={(e) => setAmount(e.target.value)} required autoFocus placeholder="0" />
               </Field>
-              {insuff && <div className="alert bad">Saldo insuficiente para este valor</div>}
-              <button className="btn" disabled={busy || insuff || !amount}>{busy ? 'Cobrando…' : 'Cobrar'}</button>
+              {insuff && <div className="alert bad">{t('op.insuff')}</div>}
+              <button className="btn" disabled={busy || insuff || !amount}>{busy ? t('op.charging') : t('op.charge')}</button>
             </form>
           )}
           {res && <div className={'alert ' + (res.ok ? 'good' : 'bad big')}>{res.ok ? '✔ ' : '⚠ '}{res.msg}</div>}
@@ -89,14 +90,14 @@ function Balance() {
   }
   return (
     <div className="stack narrow">
-      <div className="panel"><h3>Consultar saldo</h3><ScanField onScan={scan} placeholder="Lector USB + Enter (QR / pulsera)" /></div>
+      <div className="panel"><h3>{t('op.check')}</h3><ScanField onScan={scan} placeholder={t('op.ph')} /></div>
       {err && <div className="alert bad">{err}</div>}
       {c && (
         <div className="panel center">
           <h3>{c.full_name}</h3>
-          <p className="muted">CC {c.id_number}</p>
+          <p className="muted">{t('op.cc')} {c.id_number}</p>
           <div className="bal">{money(c.balance)}</div>
-          {Number(c.balance) <= 0 && <div className="alert bad big">⚠ CLIENTE SIN SALDO</div>}
+          {Number(c.balance) <= 0 && <div className="alert bad big">{t('op.nobal')}</div>}
         </div>
       )}
     </div>

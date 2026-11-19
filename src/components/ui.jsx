@@ -1,5 +1,7 @@
 import { Fragment, useEffect } from 'react'
 import InstallButton, { LOGO } from './Install'
+import { t } from '../lib/i18n'
+import LanguageSelect from './Lang'
 
 export function Modal({ title, onClose, children }) {
   useEffect(() => {
@@ -10,7 +12,7 @@ export function Modal({ title, onClose, children }) {
   return (
     <div className="modal" onClick={onClose}>
       <div className="sheet" onClick={(e) => e.stopPropagation()}>
-        <div className="sheet-head"><h3>{title}</h3><button className="x" onClick={onClose} aria-label="Cerrar">✕</button></div>
+        <div className="sheet-head"><h3>{title}</h3><button className="x" onClick={onClose} aria-label={t('common.close')}>✕</button></div>
         {children}
       </div>
     </div>
@@ -24,20 +26,20 @@ export function Shell({ title, subtitle, tabs, tab, setTab, onLogout, fab, child
   return (
     <div className="shell">
       <aside className="rail">
-        <div className="brand"><img src={LOGO} alt="" />Cashless</div>
+        <div className="brand"><img src={LOGO} alt="" />Waloja</div>
         {tabs.map((t) => (
           <button key={t.id} className={'rail-item' + (tab === t.id ? ' on' : '')} onClick={() => setTab(t.id)}>
             <span>{t.icon}</span>{t.label}
           </button>
         ))}
         {fab && <button className="rail-item" onClick={fab.onClick}><span>▣</span>{fab.label}</button>}
-        <div style={{ marginTop: "auto" }}><InstallButton className="rail-item" /></div>
-        <button className="rail-item" onClick={onLogout}><span>⎋</span>Salir</button>
+        <div style={{ marginTop: "auto" }}><LanguageSelect className="rail" /><InstallButton className="rail-item" /></div>
+        <button className="rail-item" onClick={onLogout}><span>⎋</span>{t('common.logout')}</button>
       </aside>
       <main className="main">
         <header className="top">
           <div><h1>{title}</h1>{subtitle && <small>{subtitle}</small>}</div>
-          <button className="icon-btn mob-only" onClick={onLogout} aria-label="Salir">⎋</button>
+          <div className="top-actions"><LanguageSelect className="mob-only" /><button className="icon-btn mob-only" onClick={onLogout} aria-label={t('common.logout')}>⎋</button></div>
         </header>
         <div className="content">{children}</div>
       </main>

@@ -1,4 +1,4 @@
-# Cashless Hotel (PWA)
+# Waloja · Luxury Homes (PWA)
 
 Sistema cashless NFC para hotel. React + Vite + Supabase. Instalable como app en Android, iOS, Windows y Mac.
 

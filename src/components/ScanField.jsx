@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { nfcSupported, useNfc } from '../lib/nfc'
 import QrScanner from './QrScanner'
+import { t } from '../lib/i18n'
 
 // Unifica: lector USB (modo teclado), NFC del celular (Android) y QR por cámara.
-export default function ScanField({ onScan, compact = false, placeholder = 'Cédula/código o lector USB + Enter', qr = true }) {
+export default function ScanField({ onScan, compact = false, placeholder = t('scan.ph'), qr = true }) {
   const [txt, setTxt] = useState('')
   const [cam, setCam] = useState(false)
   const nfc = useNfc((uid) => onScan(uid))
@@ -19,13 +20,13 @@ export default function ScanField({ onScan, compact = false, placeholder = 'Céd
         </div>
       )}
       <div className="row wrap">
-        {qr && <button type="button" className="btn ghost small" onClick={() => setCam(true)}>📷 Escanear QR</button>}
+        {qr && <button type="button" className="btn ghost small" onClick={() => setCam(true)}>{t('scan.qr')}</button>}
         <button type="button" className={'btn ghost small' + (nfc.active ? ' on' : '')}
           onClick={nfc.active ? nfc.stop : nfc.start}>
-          {nfc.active ? '📡 Acerca la pulsera…' : '📡 Leer pulsera NFC'}
+          {nfc.active ? t('scan.nfcon') : t('scan.nfc')}
         </button>
       </div>
-      {!nfcSupported && <p className="hint">NFC del navegador: solo Android/Chrome. En PC (Windows/Mac) conecta el lector USB y escanea dentro del campo de texto; en iPhone usa el QR.</p>}
+      {!nfcSupported && <p className="hint">{t('scan.hint')}</p>}
       {nfc.error && <p className="err">{nfc.error}</p>}
       {cam && <QrScanner onClose={() => setCam(false)} onResult={(t) => { setCam(false); onScan(t) }} />}
     </div>

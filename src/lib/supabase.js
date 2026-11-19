@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { t, locale } from './i18n'
 
 // La llave "publishable" es pública por diseño; los datos se protegen con RLS + funciones RPC.
 const URL = import.meta.env.VITE_SUPABASE_URL || 'https://xetflthjncbypzigtsay.supabase.co'
@@ -14,24 +15,12 @@ export const session = {
   clear() { safe(() => { localStorage.removeItem('cl_token'); localStorage.removeItem('cl_role') }) },
 }
 
-const MSG = {
-  SIN_SALDO: 'CLIENTE SIN SALDO',
-  SESION_INVALIDA: 'Sesión expirada. Ingresa de nuevo.',
-  SIN_PERMISO: 'No tienes permiso para esta acción.',
-  CREDENCIALES_INVALIDAS: 'Datos incorrectos.',
-  CUENTA_BLOQUEADA: 'Demasiados intentos. Espera 10 minutos.',
-  CLIENTE_NO_ENCONTRADO: 'Cliente o pulsera no encontrada.',
-  CLIENTE_INACTIVO: 'Cliente inactivo.',
-  MONTO_INVALIDO: 'Monto inválido.',
-  PIN_INVALIDO: 'La contraseña debe ser de 4 dígitos.',
-  CLAVE_CORTA: 'La clave debe tener mínimo 6 caracteres.',
-  DUPLICADO: 'Ya existe un registro con esa cédula, usuario o pulsera.',
-  NO_AUTO_DESACTIVAR: 'No puedes eliminar/desactivar tu propia cuenta.',
-  CODIGO_VACIO: 'Escanea o escribe un código.',
-}
+const CODES = ['SIN_SALDO', 'SESION_INVALIDA', 'SIN_PERMISO', 'CREDENCIALES_INVALIDAS', 'CUENTA_BLOQUEADA',
+  'CLIENTE_NO_ENCONTRADO', 'CLIENTE_INACTIVO', 'MONTO_INVALIDO', 'PIN_INVALIDO', 'CLAVE_CORTA', 'DUPLICADO',
+  'NO_AUTO_DESACTIVAR', 'CODIGO_VACIO']
 export const friendly = (m = '') => {
-  const k = Object.keys(MSG).find((x) => m.includes(x))
-  return k ? MSG[k] : 'Error: ' + m
+  const k = CODES.find((x) => m.includes(x))
+  return k ? t('err.' + k) : t('err.generic') + m
 }
 
 export async function rpc(fn, args = {}, auth = true) {
@@ -46,5 +35,5 @@ export async function rpc(fn, args = {}, auth = true) {
 }
 
 export const money = (n) =>
-  new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(Number(n || 0))
-export const dt = (s) => new Date(s).toLocaleString('es-CO', { dateStyle: 'medium', timeStyle: 'short' })
+  new Intl.NumberFormat(locale(), { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(Number(n || 0))
+export const dt = (s) => new Date(s).toLocaleString(locale(), { dateStyle: 'medium', timeStyle: 'short' })

@@ -4,6 +4,7 @@ import { Shell, Modal, Field } from '../components/ui'
 import ScanField from '../components/ScanField'
 import { normUid } from '../lib/nfc'
 import InstallButton from '../components/Install'
+import { t } from '../lib/i18n'
 
 const ID_TYPES = ['CC', 'CE', 'TI', 'Pasaporte', 'NIT', 'Otro']
 
@@ -306,16 +307,16 @@ export function AccountForm() {
   useEffect(() => { rpc('staff_me').then(setMe).catch(() => {}) }, [])
   const go = async (e) => {
     e.preventDefault()
-    try { await rpc('staff_change_password', { p_old: o, p_new: n }); setM({ ok: true, t: 'Contraseña actualizada.' }); setO(''); setN('') }
+    try { await rpc('staff_change_password', { p_old: o, p_new: n }); setM({ ok: true, t: t('acc.ok') }); setO(''); setN('') }
     catch (x) { setM({ ok: false, t: x.message }) }
   }
   return (
     <div className="stack narrow">
-      {me && <div className="panel kv"><h3>Mi cuenta</h3><p><span>Nombre</span><b>{me.full_name}</b></p><p><span>Usuario</span><b>{me.username}</b></p><p><span>Lugar</span><b>{me.venue_name || '—'}</b></p></div>}
+      {me && <div className="panel kv"><h3>{t('acc.title')}</h3><p><span>{t('acc.name')}</span><b>{me.full_name}</b></p><p><span>{t('acc.user')}</span><b>{me.username}</b></p><p><span>{t('acc.venue')}</span><b>{me.venue_name || '—'}</b></p></div>}
       <form className="panel stack" onSubmit={go}>
-        <h3>Cambiar contraseña</h3>
-        <Field label="Actual"><input type="password" value={o} onChange={(e) => setO(e.target.value)} required /></Field>
-        <Field label="Nueva (mín. 6)"><input type="password" minLength={6} value={n} onChange={(e) => setN(e.target.value)} required /></Field>
+        <h3>{t('acc.change')}</h3>
+        <Field label={t('acc.cur')}><input type="password" value={o} onChange={(e) => setO(e.target.value)} required /></Field>
+        <Field label={t('acc.new')}><input type="password" minLength={6} value={n} onChange={(e) => setN(e.target.value)} required /></Field>
         <Msg m={m} /><button className="btn">Guardar</button>
       </form>
       <InstallButton />

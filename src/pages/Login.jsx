@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { rpc, session, friendly } from '../lib/supabase'
 import { ConsentModal } from '../components/Consent'
-import InstallButton, { InstaLink, LOGO } from '../components/Install'
+import InstallButton, { InstaLink, WebLink, LOGO } from '../components/Install'
+import { t } from '../lib/i18n'
+import LanguageSelect from '../components/Lang'
 
 export default function Login({ onLogin }) {
   const [mode, setMode] = useState('guest')
@@ -28,23 +30,25 @@ export default function Login({ onLogin }) {
   return (
     <div className="login">
       <form className="login-card" onSubmit={submit}>
+        <LanguageSelect className="login-lang" />
         <img className="logo-img" src={LOGO} alt="Logo" />
-        <h1>Cashless Hotel</h1>
-        <p className="muted">Tu pulsera, tu saldo, todo en un solo lugar</p>
+        <h1>Waloja</h1>
+        <p className="muted">{t('app.tagline')}</p>
         <div className="seg">
-          <button type="button" className={mode === 'guest' ? 'on' : ''} onClick={() => { setMode('guest'); setErr('') }}>Huésped</button>
-          <button type="button" className={mode === 'staff' ? 'on' : ''} onClick={() => { setMode('staff'); setErr('') }}>Personal</button>
+          <button type="button" className={mode === 'guest' ? 'on' : ''} onClick={() => { setMode('guest'); setErr('') }}>{t('login.guest')}</button>
+          <button type="button" className={mode === 'staff' ? 'on' : ''} onClick={() => { setMode('staff'); setErr('') }}>{t('login.staff')}</button>
         </div>
         <input value={user} onChange={(e) => setUser(e.target.value)} required autoCapitalize="off" autoCorrect="off"
-          placeholder={mode === 'guest' ? 'Cédula o identificación' : 'Usuario'}
+          placeholder={mode === 'guest' ? t('login.id') : t('login.user')}
           inputMode={mode === 'guest' ? 'text' : 'text'} />
         <input value={pass} onChange={(e) => setPass(e.target.value)} required type="password"
-          placeholder={mode === 'guest' ? 'Contraseña (4 dígitos)' : 'Contraseña'}
+          placeholder={mode === 'guest' ? t('login.pin') : t('login.pass')}
           inputMode={mode === 'guest' ? 'numeric' : 'text'} maxLength={mode === 'guest' ? 4 : 64} autoComplete="current-password" />
         {err && <div className="alert bad small">{err}</div>}
-        <button className="btn" disabled={busy}>{busy ? 'Ingresando…' : 'Ingresar'}</button>
-        <small>Tus datos se usan solo para acceder a la plataforma. <button type="button" className="linkbtn" onClick={() => setLegal(true)}>Política de datos</button></small>
+        <button className="btn" disabled={busy}>{busy ? t('login.busy') : t('login.btn')}</button>
+        <small>{t('login.privacy')} <button type="button" className="linkbtn" onClick={() => setLegal(true)}>{t('login.policy')}</button></small>
         <InstallButton />
+        <WebLink />
         <InstaLink />
       </form>
       {legal && <ConsentModal onClose={() => setLegal(false)} />}

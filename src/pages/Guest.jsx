@@ -2,8 +2,9 @@ import { useCallback, useEffect, useState } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import { rpc, money, dt } from '../lib/supabase'
 import { Shell, Modal, Field } from '../components/ui'
-import InstallButton, { InstaLink } from '../components/Install'
+import InstallButton, { InstaLink, WebLink } from '../components/Install'
 import { ConsentGate, ConsentModal, CONSENT_VERSION } from '../components/Consent'
+import { t, t as t0 } from '../lib/i18n'
 
 const COLORS = ['#4f6bff', '#d9a56e', '#e58a8a', '#a06bff', '#4fd1c5']
 
@@ -24,7 +25,7 @@ function Donut({ data, total, balance, hide }) {
           return el
         })}
       </svg>
-      <div className="donut-in"><small>Saldo disponible</small><strong>{hide ? '••••' : money(balance)}</strong></div>
+      <div className="donut-in"><small>{t('g.balance')}</small><strong>{hide ? '••••' : money(balance)}</strong></div>
     </div>
   )
 }
@@ -48,36 +49,36 @@ export default function Guest({ onLogout }) {
   }, [])
   useEffect(() => { load(); const i = setInterval(load, 15000); return () => clearInterval(i) }, [load])
 
-  if (!me) return <div className="splash">Cargando…</div>
+  if (!me) return <div className="splash">{t('common.loading')}</div>
   if (!me.consent_at) return <ConsentGate onDecline={onLogout} onAccept={async () => { await rpc('guest_accept_consent', { p_version: CONSENT_VERSION }); await load() }} />
   const tabs = [
-    { id: 'home', icon: '⌂', label: 'Inicio' },
-    { id: 'menu', icon: '🍽', label: 'Carta' },
-    { id: 'tx', icon: '☰', label: 'Consumos' },
-    { id: 'me', icon: '◉', label: 'Perfil' },
+    { id: 'home', icon: '⌂', label: t('tab.home') },
+    { id: 'menu', icon: '🍽', label: t('tab.menu') },
+    { id: 'tx', icon: '☰', label: t('tab.tx') },
+    { id: 'me', icon: '◉', label: t('tab.me') },
   ]
   const qrVal = 'CL:' + me.qr_code
 
   return (
-    <Shell title={me.full_name} subtitle="Bienvenido" tabs={tabs} tab={tab} setTab={setTab} onLogout={onLogout}
-      fab={{ onClick: () => setQr(true), label: 'Mi QR' }}>
+    <Shell title={me.full_name} subtitle={t('g.welcome')} tabs={tabs} tab={tab} setTab={setTab} onLogout={onLogout}
+      fab={{ onClick: () => setQr(true), label: t('g.myqrfab') }}>
       {tab === 'home' && (
         <div className="stack">
           <div className="card-wallet">
-            <div className="between"><span>Saldo disponible</span><button className="eye" onClick={() => setHide(!hide)}>{hide ? '🙈' : '👁'}</button></div>
+            <div className="between"><span>{t('g.balance')}</span><button className="eye" onClick={() => setHide(!hide)}>{hide ? '🙈' : '👁'}</button></div>
             <div className="big">{hide ? '••••••' : money(me.balance)}</div>
             <div className="between small">
-              <span>Pulsera NFC<br /><b>{me.nfc_uid || 'Sin asignar'}</b></span>
-              <span style={{ textAlign: 'right' }}>Cédula<br /><b>{me.id_number}</b></span>
+              <span>{t('g.nfc')}<br /><b>{me.nfc_uid || t('g.none')}</b></span>
+              <span style={{ textAlign: 'end' }}>{t('g.idnum')}<br /><b>{me.id_number}</b></span>
             </div>
           </div>
           <div className="grid2">
-            <div className="chip in"><span>↗</span><div><small>Recargas</small><b>{money(me.total_topup)}</b></div></div>
-            <div className="chip out"><span>↘</span><div><small>Consumos</small><b>{money(me.total_spent)}</b></div></div>
+            <div className="chip in"><span>↗</span><div><small>{t('g.topups')}</small><b>{money(me.total_topup)}</b></div></div>
+            <div className="chip out"><span>↘</span><div><small>{t('g.spent')}</small><b>{money(me.total_spent)}</b></div></div>
           </div>
           <div className="panel">
-            <h3>Gastos por lugar</h3>
-            {by.length === 0 ? <p className="muted">Aún no tienes consumos.</p> : (
+            <h3>{t('g.byvenue')}</h3>
+            {by.length === 0 ? <p className="muted">{t('g.nospend')}</p> : (
               <>
                 <Donut data={by} balance={me.balance} hide={hide} />
                 <div className="legend">{by.map((d, i) => (
@@ -86,36 +87,38 @@ export default function Guest({ onLogout }) {
             )}
           </div>
           <div className="panel">
-            <h3>Actividad reciente</h3>
+            <h3>{t('g.recent')}</h3>
             <TxList items={tx.slice(0, 5)} />
           </div>
-          <button className="btn" onClick={() => setQr(true)}>▣ Mostrar mi código QR</button>
+          <button className="btn" onClick={() => setQr(true)}>{t('g.showqr')}</button>
+          <WebLink />
           <InstaLink />
         </div>
       )}
-      {tab === 'tx' && <div className="panel"><h3>Todos mis consumos</h3><TxList items={tx} /></div>}
+      {tab === 'tx' && <div className="panel"><h3>{t('g.alltx')}</h3><TxList items={tx} /></div>}
       {tab === 'menu' && <Menu items={menu} />}
       {tab === 'me' && (
         <div className="stack">
           <div className="panel kv">
-            <h3>Detalles de la reserva</h3>
-            <p><span>Nombre</span><b>{me.full_name}</b></p>
+            <h3>{t('g.reserve')}</h3>
+            <p><span>{t('g.name')}</span><b>{me.full_name}</b></p>
             <p><span>{me.id_type}</span><b>{me.id_number}</b></p>
-            <p><span>Teléfono</span><b>{me.phone || '—'}</b></p>
-            <p><span>Inicio de reserva</span><b>{dt(me.check_in)}</b></p>
-            <p><span>Pulsera NFC</span><b>{me.nfc_uid || 'Sin asignar'}</b></p>
+            <p><span>{t('g.phone')}</span><b>{me.phone || '—'}</b></p>
+            <p><span>{t('g.checkin')}</span><b>{dt(me.check_in)}</b></p>
+            <p><span>{t('g.nfc')}</span><b>{me.nfc_uid || t('g.none')}</b></p>
           </div>
-          <button className="btn ghost" onClick={() => setPinOpen(true)}>🔑 Cambiar mi contraseña (4 dígitos)</button>
+          <button className="btn ghost" onClick={() => setPinOpen(true)}>{t('g.changepin')}</button>
+          <WebLink />
           <InstaLink />
           <InstallButton />
-          <button className="btn ghost" onClick={() => setLegal(true)}>📄 Política de datos personales</button>
-          <button className="btn danger" onClick={onLogout}>Cerrar sesión</button>
+          <button className="btn ghost" onClick={() => setLegal(true)}>{t('g.policy')}</button>
+          <button className="btn danger" onClick={onLogout}>{t('g.logout')}</button>
         </div>
       )}
       {qr && (
-        <Modal title="Mi código QR" onClose={() => setQr(false)}>
+        <Modal title={t('g.myqr')} onClose={() => setQr(false)}>
           <div className="qrbox"><QRCodeSVG value={qrVal} size={240} bgColor="#ffffff" fgColor="#0b0f2a" level="M" marginSize={2} /></div>
-          <p className="muted center">Muéstralo al operario para pagar.<br />Pulsera: <b>{me.nfc_uid || 'sin asignar'}</b></p>
+          <p className="muted center">{t('g.qrhelp')}<br />{t('g.bracelet')}: <b>{me.nfc_uid || t('g.unassigned')}</b></p>
         </Modal>
       )}
       {pinOpen && <PinForm onClose={() => setPinOpen(false)} />}
@@ -125,14 +128,14 @@ export default function Guest({ onLogout }) {
 }
 
 function TxList({ items }) {
-  if (!items.length) return <p className="muted">Sin movimientos.</p>
+  if (!items.length) return <p className="muted">{t('tx.empty')}</p>
   return (
     <div className="list">
       {items.map((t) => (
         <div key={t.id} className="item">
           <div className={'avatar ' + t.type}>{t.type === 'charge' ? '↘' : '↗'}</div>
           <div className="grow">
-            <b>{t.type === 'charge' ? (t.description || 'Consumo') : 'Recarga de saldo'}</b>
+            <b>{t.type === 'charge' ? (t.description || t0('tx.consumption')) : t0('tx.topup')}</b>
             <small>{t.venue ? t.venue + ' · ' : ''}{dt(t.created_at)}</small>
           </div>
           <b className={t.type === 'charge' ? 'neg' : 'pos'}>{t.type === 'charge' ? '-' : '+'}{money(t.amount)}</b>
@@ -145,7 +148,7 @@ function TxList({ items }) {
 function Menu({ items }) {
   const groups = items.reduce((a, p) => ((a[p.venue] ||= []).push(p), a), {})
   const keys = Object.keys(groups)
-  if (!keys.length) return <div className="panel"><p className="muted">La carta aún no está disponible.</p></div>
+  if (!keys.length) return <div className="panel"><p className="muted">{t('menu.empty')}</p></div>
   return (
     <div className="stack">
       {keys.map((v) => (
@@ -163,16 +166,16 @@ function PinForm({ onClose }) {
   const [o, setO] = useState(''); const [n, setN] = useState(''); const [msg, setMsg] = useState(null)
   const go = async (e) => {
     e.preventDefault()
-    try { await rpc('guest_change_pin', { p_old: o, p_new: n }); setMsg({ ok: true, t: 'Contraseña actualizada.' }); setO(''); setN('') }
+    try { await rpc('guest_change_pin', { p_old: o, p_new: n }); setMsg({ ok: true, t: t('pin.ok') }); setO(''); setN('') }
     catch (x) { setMsg({ ok: false, t: x.message }) }
   }
   return (
-    <Modal title="Cambiar contraseña" onClose={onClose}>
+    <Modal title={t('pin.title')} onClose={onClose}>
       <form onSubmit={go} className="stack">
-        <Field label="Contraseña actual"><input type="password" inputMode="numeric" maxLength={4} value={o} onChange={(e) => setO(e.target.value)} required /></Field>
-        <Field label="Nueva contraseña (4 dígitos)"><input type="password" inputMode="numeric" maxLength={4} pattern="[0-9]{4}" value={n} onChange={(e) => setN(e.target.value)} required /></Field>
+        <Field label={t('pin.old')}><input type="password" inputMode="numeric" maxLength={4} value={o} onChange={(e) => setO(e.target.value)} required /></Field>
+        <Field label={t('pin.new')}><input type="password" inputMode="numeric" maxLength={4} pattern="[0-9]{4}" value={n} onChange={(e) => setN(e.target.value)} required /></Field>
         {msg && <div className={'alert small ' + (msg.ok ? 'good' : 'bad')}>{msg.t}</div>}
-        <button className="btn">Guardar</button>
+        <button className="btn">{t('common.save')}</button>
       </form>
     </Modal>
   )
