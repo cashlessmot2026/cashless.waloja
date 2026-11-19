@@ -3,6 +3,7 @@ import { rpc, money, dt } from '../lib/supabase'
 import { Shell, Modal, Field } from '../components/ui'
 import ScanField from '../components/ScanField'
 import { normUid } from '../lib/nfc'
+import InstallButton from '../components/Install'
 
 const ID_TYPES = ['CC', 'CE', 'TI', 'Pasaporte', 'NIT', 'Otro']
 
@@ -317,6 +318,7 @@ export function AccountForm() {
         <Field label="Nueva (mín. 6)"><input type="password" minLength={6} value={n} onChange={(e) => setN(e.target.value)} required /></Field>
         <Msg m={m} /><button className="btn">Guardar</button>
       </form>
+      <InstallButton />
     </div>
   )
 }

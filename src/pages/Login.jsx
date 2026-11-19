@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { rpc, session, friendly } from '../lib/supabase'
 import { ConsentModal } from '../components/Consent'
+import InstallButton, { InstaLink, LOGO } from '../components/Install'
 
 export default function Login({ onLogin }) {
   const [mode, setMode] = useState('guest')
@@ -27,7 +28,7 @@ export default function Login({ onLogin }) {
   return (
     <div className="login">
       <form className="login-card" onSubmit={submit}>
-        <div className="logo">💳</div>
+        <img className="logo-img" src={LOGO} alt="Logo" />
         <h1>Cashless Hotel</h1>
         <p className="muted">Tu pulsera, tu saldo, todo en un solo lugar</p>
         <div className="seg">
@@ -43,6 +44,8 @@ export default function Login({ onLogin }) {
         {err && <div className="alert bad small">{err}</div>}
         <button className="btn" disabled={busy}>{busy ? 'Ingresando…' : 'Ingresar'}</button>
         <small>Tus datos se usan solo para acceder a la plataforma. <button type="button" className="linkbtn" onClick={() => setLegal(true)}>Política de datos</button></small>
+        <InstallButton />
+        <InstaLink />
       </form>
       {legal && <ConsentModal onClose={() => setLegal(false)} />}
     </div>

@@ -1,4 +1,5 @@
 import { Fragment, useEffect } from 'react'
+import InstallButton, { LOGO } from './Install'
 
 export function Modal({ title, onClose, children }) {
   useEffect(() => {
@@ -23,14 +24,15 @@ export function Shell({ title, subtitle, tabs, tab, setTab, onLogout, fab, child
   return (
     <div className="shell">
       <aside className="rail">
-        <div className="brand">💳 Cashless</div>
+        <div className="brand"><img src={LOGO} alt="" />Cashless</div>
         {tabs.map((t) => (
           <button key={t.id} className={'rail-item' + (tab === t.id ? ' on' : '')} onClick={() => setTab(t.id)}>
             <span>{t.icon}</span>{t.label}
           </button>
         ))}
         {fab && <button className="rail-item" onClick={fab.onClick}><span>▣</span>{fab.label}</button>}
-        <button className="rail-item out" onClick={onLogout}><span>⎋</span>Salir</button>
+        <div style={{ marginTop: "auto" }}><InstallButton className="rail-item" /></div>
+        <button className="rail-item" onClick={onLogout}><span>⎋</span>Salir</button>
       </aside>
       <main className="main">
         <header className="top">

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import { rpc, money, dt } from '../lib/supabase'
 import { Shell, Modal, Field } from '../components/ui'
+import InstallButton, { InstaLink } from '../components/Install'
 import { ConsentGate, ConsentModal, CONSENT_VERSION } from '../components/Consent'
 
 const COLORS = ['#4f6bff', '#d9a56e', '#e58a8a', '#a06bff', '#4fd1c5']
@@ -89,6 +90,7 @@ export default function Guest({ onLogout }) {
             <TxList items={tx.slice(0, 5)} />
           </div>
           <button className="btn" onClick={() => setQr(true)}>▣ Mostrar mi código QR</button>
+          <InstaLink />
         </div>
       )}
       {tab === 'tx' && <div className="panel"><h3>Todos mis consumos</h3><TxList items={tx} /></div>}
@@ -104,6 +106,8 @@ export default function Guest({ onLogout }) {
             <p><span>Pulsera NFC</span><b>{me.nfc_uid || 'Sin asignar'}</b></p>
           </div>
           <button className="btn ghost" onClick={() => setPinOpen(true)}>🔑 Cambiar mi contraseña (4 dígitos)</button>
+          <InstaLink />
+          <InstallButton />
           <button className="btn ghost" onClick={() => setLegal(true)}>📄 Política de datos personales</button>
           <button className="btn danger" onClick={onLogout}>Cerrar sesión</button>
         </div>

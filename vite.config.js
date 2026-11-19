@@ -10,24 +10,31 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['icon.svg'],
+      includeAssets: ['logo.png', 'favicon.png', 'apple-touch-icon.png'],
       manifest: {
+        id: base,
         name: 'Cashless Hotel',
         short_name: 'Cashless',
-        description: 'Sistema cashless NFC para hotel',
+        description: 'Sistema cashless NFC para hotel: saldo, consumos y pagos con pulsera o QR.',
+        lang: 'es',
+        categories: ['finance', 'travel', 'lifestyle'],
         theme_color: '#0b0f2a',
         background_color: '#0b0f2a',
         display: 'standalone',
-        orientation: 'portrait',
+        display_override: ['window-controls-overlay', 'standalone', 'minimal-ui'],
+        orientation: 'any',
         start_url: base,
         scope: base,
         icons: [
-          { src: 'icon-192.png', sizes: '192x192', type: 'image/png' },
-          { src: 'icon-512.png', sizes: '512x512', type: 'image/png' },
-          { src: 'icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' }
+          { src: 'icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: 'icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: 'icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' }
         ]
       },
-      workbox: { navigateFallback: base + 'index.html' }
+      workbox: {
+        navigateFallback: base + 'index.html',
+        cleanupOutdatedCaches: true
+      }
     })
   ]
 })

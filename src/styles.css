@@ -134,3 +134,10 @@ input[type=checkbox] { width: 20px; min-height: 0; height: 20px; accent-color: v
 .legal { font-size: .88rem; line-height: 1.5; } .legal p { margin: .5rem 0; } .legal ul { margin: .4rem 0; padding-left: 1.2rem; }
 .legal-box { max-height: 38vh; overflow: auto; background: rgba(255,255,255,.05); border: 1px solid var(--line); border-radius: 14px; padding: .6rem .9rem; }
 .linkbtn { background: none; border: 0; color: var(--brand); text-decoration: underline; padding: .2rem; font-size: .85rem; cursor: pointer; }
+
+/* logo, instagram, instalar */
+.logo-img { width: 84px; height: 84px; border-radius: 50%; margin: 0 auto; display: block; box-shadow: 0 8px 26px rgba(0,0,0,.45); }
+.brand { display: flex; align-items: center; gap: .6rem; }
+.brand img { width: 36px; height: 36px; border-radius: 50%; }
+.linkcard { display: flex; align-items: center; justify-content: center; gap: .55rem; text-decoration: none; color: var(--txt); }
+.footer-links { display: grid; gap: .6rem; }
