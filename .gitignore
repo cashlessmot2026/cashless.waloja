@@ -5,3 +5,5 @@ dist
 *.local
 demo/
 manuales/
+.playwright-mcp/
+logo walajo.jpeg
